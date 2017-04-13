@@ -1,0 +1,25 @@
+<project>
+	
+	<target name="clean">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+	</target>
+
+	<target name="compile">
+		<javac srcdir="src/com/urv/blackeagle/function/noopdataiterator/" destdir="bin" includeantruntime="false">
+			<classpath>
+		        <pathelement 
+		        	path="lib/blackeagle-runtime-1.0.jar"/>
+				<pathelement 
+					path="lib/json-simple-1.1.1.jar"/>
+			</classpath>		
+		</javac>
+	    <jar destfile="bin/noop-data-iterator-1.0.jar" 
+	        basedir="bin"
+	     	includes="com/urv/blackeagle/function/noopdataiterator/*">
+	    </jar>
+	</target>
+	
+	<target name="build" depends="clean, compile"/>
+
+</project>

@@ -1,0 +1,19 @@
+<configuration>
+  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+    <file>/home/swift/blackeagle_java_runtime.log</file>
+    <append>true</append>
+    <encoder>
+      <pattern>%-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <appender name="SYSLOG" class="ch.qos.logback.classic.net.SyslogAppender">
+    <syslogHost>127.0.0.1</syslogHost>
+    <facility>SYSLOG</facility>
+    <suffixPattern>[%thread] %logger %level %msg</suffixPattern>
+  </appender>
+
+  <root level="TRACE">
+    <appender-ref ref="SYSLOG" />
+    <appender-ref ref="FILE" />
+  </root>
+</configuration>
