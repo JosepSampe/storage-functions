@@ -29,7 +29,7 @@ class RuntimeSandbox(object):
         self.scope = account[5:18]
         self.conf = conf
         self.logger = logger
-        self.docker_img_prefix = 'blackeagle'
+        self.docker_img_prefix = conf['docker_img_prefix']
         self.docker_repo = conf['docker_repo']
         self.workers = conf['workers']
 
@@ -81,36 +81,32 @@ class RuntimeSandbox(object):
         if not self._is_started(container_name):
             docker_image_name = '%s/%s' % (self.docker_repo, self.scope)
 
-            host_pipe_prefix = self.conf["pipes_dir"] + "/" + self.scope
-            sandbox_pipe_prefix = "/mnt/channels"
+            local_functions_dir = self.conf["main_dir"] + "/" + self.scope
 
-            pipe_mount = '%s:%s' % (host_pipe_prefix, sandbox_pipe_prefix)
+            java_runtime_local = local_functions_dir + "/" + self.conf["java_runtime_dir"]
+            java_runtime_docker = "/home/swift"
+            java_runtime_mount = '%s:%s' % (java_runtime_local, java_runtime_docker)
 
-            host_storlet_prefix = self.conf["function_dir"] + "/" + self.scope
-            sandbox_storlet_dir_prefix = "/home/swift"
-
-            f_mount = '%s:%s' % (host_storlet_prefix,
-                                 sandbox_storlet_dir_prefix)
+            pipes_local = local_functions_dir + "/" + self.conf["pipes_dir"]
+            pipes_docker = "/mnt/channels"
+            pipes_mount = '%s:%s' % (pipes_local, pipes_docker)
 
             cmd = 'docker run --name ' + container_name + \
-                  ' -d -v /dev/log:/dev/log -v ' + pipe_mount + \
-                  ' -v ' + f_mount + ' -i -t ' + docker_image_name + \
+                  ' -d -v /dev/log:/dev/log -v ' + pipes_mount + \
+                  ' -v ' + java_runtime_mount + ' -i -t ' + docker_image_name + \
                   ' debug "/home/swift/start_daemon.sh ' + self.workers + '"'
 
             self.logger.info(cmd)
 
-            self.logger.info('Blackeagle - Starting container ' +
-                             container_name + ' ...')
+            self.logger.info('Starting container ' + container_name + ' ...')
 
             p = subprocess.call(cmd, shell=True)
 
             if p == 0:
                 time.sleep(1)
-                self.logger.info('Blackeagle - Container "' +
-                                 container_name + '" started')
+                self.logger.info('Container "' + container_name + '" started')
         else:
-            self.logger.info('Blackeagle - Container "' +
-                             container_name + '" is already started')
+            self.logger.info('Container "' + container_name + '" is already started')
 
 
 class Function(object):

@@ -11,7 +11,8 @@ class VertigoHandlerMiddleware(object):
     def __init__(self, app, conf, vertigo_conf):
         self.app = app
         self.exec_server = vertigo_conf.get('execution_server')
-        self.logger = get_logger(conf, log_route='function_handler')
+        self.logger = get_logger(conf, name=self.exec_server+"-server Blackeagle",
+                                 log_route='function_handler')
         self.vertigo_conf = vertigo_conf
         self.handler_class = self._get_handler(self.exec_server)
 
@@ -28,20 +29,15 @@ class VertigoHandlerMiddleware(object):
         elif exec_server == 'object':
             return ObjectHandler
         else:
-            raise ValueError(
-                'configuration error: execution_server must be either proxy'
-                ', object or middlebox but is %s' % exec_server)
+            raise ValueError('configuration error: execution_server must be either proxy'
+                             ', object or middlebox but is %s' % exec_server)
 
     @wsgify
     def __call__(self, req):
         try:
-            handler = self.handler_class(
-                req, self.vertigo_conf, self.app, self.logger)
-            self.logger.debug('Function handler %s call in %s with %s/%s/%s' %
-                              (req.method, self.exec_server,
-                               handler.account,
-                               handler.container,
-                               handler.obj))
+            handler = self.handler_class(req, self.vertigo_conf, self.app, self.logger)
+            self.logger.debug('Function handler %s call in %s/%s/%s' %
+                              (req.method, handler.account, handler.container, handler.obj))
         except HTTPException:
             raise
         except NotFunctionRequest:
@@ -51,11 +47,11 @@ class VertigoHandlerMiddleware(object):
             return handler.handle_request()
 
         except HTTPException:
-            self.logger.exception('Function middleware execution failed')
+            self.logger.exception('Middleware execution failed')
             raise
         except Exception:
-            self.logger.exception('Function middleware execution failed')
-            raise HTTPInternalServerError(body='Function middleware execution failed')
+            self.logger.exception('Middleware execution failed')
+            raise HTTPInternalServerError(body='Middleware execution failed')
 
 
 def filter_factory(global_conf, **local_conf):
@@ -69,11 +65,14 @@ def filter_factory(global_conf, **local_conf):
     vertigo_conf['execution_server'] = conf.get('execution_server')
     vertigo_conf['function_timeout'] = conf.get('function_timeout', 8)
     vertigo_conf['function_pipe'] = conf.get('f_pipe', 'function_pipe')
+    vertigo_conf['docker_img_prefix'] = conf.get('docker_img_prefix', 'blackeagle')
     vertigo_conf['metadata_visibility'] = conf.get('metadata_visibility', True)
-    vertigo_conf['function_dir'] = conf.get('function_dir', '/home/docker_device/functions/scopes')
-    vertigo_conf['cache_dir'] = conf.get('cache_dir', '/home/docker_device/cache/scopes')
-    vertigo_conf['log_dir'] = conf.get('cache_dir', '/home/docker_device/logs/scopes')
-    vertigo_conf['pipes_dir'] = conf.get('cache_dir', '/home/docker_device/pipes/scopes')
+    vertigo_conf['main_dir'] = conf.get('function_dir', '/home/docker_device/blackeagle/scopes')
+    vertigo_conf['java_runtime_dir'] = conf.get('cache_dir', 'runtime/java')
+    vertigo_conf['python_runtime_dir'] = conf.get('cache_dir', 'runtime/python')
+    vertigo_conf['cache_dir'] = conf.get('cache_dir', 'cache')
+    vertigo_conf['log_dir'] = conf.get('cache_dir', 'logs')
+    vertigo_conf['pipes_dir'] = conf.get('cache_dir', 'pipes')
     vertigo_conf['docker_repo'] = conf.get('docker_repo', '192.168.2.1:5001')
     vertigo_conf['function_container'] = conf.get('f_container', 'function')
     vertigo_conf['function_dependency'] = conf.get('f_dependency', 'dependency')

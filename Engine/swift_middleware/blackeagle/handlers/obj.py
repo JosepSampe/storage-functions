@@ -62,12 +62,12 @@ class ObjectHandler(BaseHandler):
         PUT handler on Object
         """
         if self.is_trigger_assignation:
-            trigger, micro_controller = self.get_function_assignation_data()
+            trigger, function = self.get_function_assignation_data()
 
             try:
-                set_function_object(self, trigger, micro_controller)
-                msg = 'Blackeagle - Function "' + micro_controller + \
-                    '" correctly assigned to the "' + trigger + '" trigger.\n'
+                set_function_object(self, trigger, function)
+                msg = 'Function "' + function + \
+                      '" correctly assigned to the "' + trigger + '" trigger.\n'
             except ValueError as e:
                 msg = e.args[0]
             self.logger.info(msg)
@@ -76,12 +76,12 @@ class ObjectHandler(BaseHandler):
                                 request=self.request)
 
         elif self.is_trigger_deletion:
-            trigger, micro_controller = self.get_function_deletion_data()
+            trigger, function = self.get_function_deletion_data()
 
             try:
-                delete_function_object(self, trigger, micro_controller)
-                msg = 'Blackeagle - Function "' + micro_controller +\
-                    '" correctly removed from the "' + trigger + '" trigger.\n'
+                delete_function_object(self, trigger, function)
+                msg = 'Function "' + function +\
+                      '" correctly removed from the "' + trigger + '" trigger.\n'
             except ValueError as e:
                 msg = e.args[0]
 

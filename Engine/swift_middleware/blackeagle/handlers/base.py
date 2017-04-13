@@ -46,10 +46,10 @@ class BaseHandler(object):
         :param conf: gatway conf dict
         """
         self.request = request
-        self.vertigo_containers = [conf.get('function_container'),
-                                   conf.get('function_dependency'),
-                                   conf.get('storlet_container'),
-                                   conf.get('storlet_dependency')]
+        self.function_containers = [conf.get('function_container'),
+                                    conf.get('function_dependency'),
+                                    conf.get('storlet_container'),
+                                    conf.get('storlet_dependency')]
         self.available_assignation_headers = ['X-Function-Onget',
                                               'X-Function-Ondelete',
                                               'X-Function-Onput']
@@ -94,8 +94,7 @@ class BaseHandler(object):
         header = [i for i in self.available_assignation_headers
                   if i in self.request.headers.keys()]
         if len(header) > 1:
-            raise HTTPUnauthorized('Blackeagle - The system can only set 1'
-                                   ' function each time.\n')
+            raise HTTPUnauthorized('The system can only set 1 function each time.\n')
         mc = self.request.headers[header[0]]
 
         return header[0].rsplit('-', 1)[1].lower(), mc
@@ -104,8 +103,7 @@ class BaseHandler(object):
         header = [i for i in self.available_deletion_headers
                   if i in self.request.headers.keys()]
         if len(header) > 1:
-            raise HTTPUnauthorized('Blackeagle - The system can only delete 1'
-                                   ' function each time.\n')
+            raise HTTPUnauthorized('The system can only delete 1 function each time.\n')
         mc = self.request.headers[header[0]]
 
         return header[0].rsplit('-', 2)[1].lower(), mc
@@ -137,7 +135,7 @@ class BaseHandler(object):
 
     def handle_request(self):
         """
-        Run Vertigo
+        Run Function middleware
         """
         raise NotImplementedError()
 
@@ -170,15 +168,15 @@ class BaseHandler(object):
         return len(Range(r).ranges) > 1
 
     @property
-    def is_vertigo_container_request(self):
+    def is_function_container_request(self):
         """
-        Determines whether the request is over any vertigo container
+        Determines whether the request is over any function container
         """
-        return self.container in self.vertigo_containers
+        return self.container in self.function_containers
 
     @property
-    def is_vertigo_object_put(self):
-        return (self.container in self.vertigo_containers and self.obj and
+    def is_function_object_put(self):
+        return (self.container in self.function_containers and self.obj and
                 self.request.method == 'PUT')
 
     @property
@@ -206,10 +204,10 @@ class BaseHandler(object):
     @property
     def is_valid_request(self):
         """
-        Determines if is a Vertigo valid request
+        Determines if is a valid request
         """
         return not any([self.is_copy_request, self.is_slo_get_request,
-                        self.is_function_disabled, self.is_vertigo_container_request,
+                        self.is_function_disabled, self.is_function_container_request,
                         not ((not self.obj and self.request.method == 'HEAD') or
                              (self.obj))])
 
@@ -233,7 +231,7 @@ class BaseHandler(object):
 
     @property
     def is_object_move(self):
-        return 'X-Vertigo-Link-To' in self.request.headers
+        return 'X-Link-To' in self.request.headers
 
     def is_slo_response(self, resp):
         self.logger.debug(
@@ -280,7 +278,7 @@ class BaseHandler(object):
 
         elif f_data['command'] == 'STORLET':
             slist = f_data['list']
-            self.logger.info('Blackeagle - Go to execute Storlets: ' + str(slist))
+            self.logger.info('Go to execute Storlets: ' + str(slist))
             return self.apply_storlet_on_get(response, slist)
 
         elif f_data['command'] == 'REWIRE':
@@ -296,8 +294,8 @@ class BaseHandler(object):
         account_meta = get_account_info(self.request.environ, self.app)['meta']
         storlets_enabled = account_meta.get('storlet-enabled', 'False')
         if not config_true_value(storlets_enabled):
-            self.logger.debug('Blackeagle - Account disabled for storlets')
-            raise HTTPBadRequest('Blackeagle - Error: Account disabled for'
+            self.logger.debug('Account disabled for storlets')
+            raise HTTPBadRequest('Error: Account disabled for'
                                  ' storlets.\n', request=self.request)
         return True
 
@@ -344,15 +342,14 @@ class BaseHandler(object):
             f_list = get_function_list_object(response.headers, self.method)
 
         if f_list:
-            self.logger.info('Blackeagle - There are functions' +
-                             ' to execute: ' + str(f_list))
+            self.logger.info('There are functions to execute: ' + str(f_list))
             self._setup_docker_gateway(response)
             f_data = self.f_docker_gateway.execute_function(f_list)
             response = self._process_function_data_resp(response, f_data)
 
             # Delete the function headers to no propagate the function execution
             for header in response.headers.keys():
-                if header.startswith('X-Object-Sysmeta-Vertigo'):
+                if header.startswith('X-Object-Sysmeta-Function'):
                     del response.headers[header]
 
         if 'Content-Length' not in response.headers:

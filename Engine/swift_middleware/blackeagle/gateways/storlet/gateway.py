@@ -155,12 +155,11 @@ class StorletGateway():
 
             if server == self.server:
                 self._setup_gateway()
-                self.logger.info('Blackeagle - Go to execute ' + storlet +
+                self.logger.info('Go to execute ' + storlet +
                                  ' storlet with parameters "' + params + '"')
 
                 if not self._verify_access_to_storlet(storlet):
-                    return HTTPUnauthorized('Blackeagle - Storlet ' + storlet +
-                                            ': No permission')
+                    return HTTPUnauthorized('Storlet ' + storlet + ': No permission')
                 self._setup_gateway()
                 data_iter = self._call_gateway(req_resp, params, data_iter)
             else:

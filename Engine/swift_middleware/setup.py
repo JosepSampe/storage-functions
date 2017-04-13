@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 paste_factory = ['synchronous_functions = '
-                 'swift_middleware.function_handler:filter_factory']
+                 'blackeagle.function_handler:filter_factory']
 
 setup(name='swift-blackeagle',
       version='0.1.0',

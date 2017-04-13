@@ -28,15 +28,16 @@ class DockerGateway():
         self.execution_server = conf["execution_server"]
         self.workers = int(conf["workers"])
 
-        #self.fast = False
-        self.fast = True
+        self.fast = False
+        # self.fast = True
 
         # Paths
-        self.logger_path = os.path.join(conf["log_dir"], self.scope)
-        self.pipe_path = os.path.join(conf["pipes_dir"], self.scope)
+        self.scope_dir = os.path.join(conf["main_dir"], self.scope)
+        self.logger_path = os.path.join(self.scope_dir, conf["log_dir"])
+        self.pipes_path = os.path.join(self.scope_dir, conf["pipes_dir"])
         thread = libc.syscall(186)
         tid = str(thread % self.workers)
-        self.function_pipe_path = os.path.join(self.pipe_path, conf["function_pipe"]+"_"+tid)
+        self.function_pipe_path = os.path.join(self.pipes_path, conf["function_pipe"]+"_"+tid)
 
     def execute_function(self, function_list):
         """
@@ -94,8 +95,8 @@ class DockerGateway():
         :param swift_container: container name
         :param obj_name: Name of the function or dependency
         """
-        cache_target_path = os.path.join(self.conf["cache_dir"],
-                                         self.scope, 'function',
+        cache_target_path = os.path.join(self.scope_dir,
+                                         self.conf["cache_dir"],
                                          swift_container)
         cache_target_obj = os.path.join(cache_target_path, obj_name)
 
@@ -118,23 +119,21 @@ class DockerGateway():
         :param object_name: Name of the function or dependency
         :returns : whether the object is available in cache
         """
-        cached_target_obj = os.path.join(self.conf["cache_dir"], self.scope,
-                                         'function', swift_container, obj_name)
-        self.logger.info('Blackeagle - Checking in cache: ' + swift_container +
+        cached_target_obj = os.path.join(self.scope_dir,
+                                         self.conf["cache_dir"],
+                                         swift_container, obj_name)
+        self.logger.info('Checking in cache: ' + swift_container +
                          '/' + obj_name)
 
         if not os.path.isfile(cached_target_obj):
             # If the objects is not in cache, brings it from Swift.
-            # raise NameError('Vertigo - ' + swift_container+'/'+object_name +
-            #                 ' not found in cache.')
-            self.logger.info('Blackeagle - ' + swift_container +
-                             '/' + obj_name + ' not found in cache.')
+            # raise NameError(swift_container+'/'+object_name + ' not found in cache.')
+            self.logger.info(swift_container + '/' + obj_name + ' not found in cache.')
             self._update_local_cache_from_swift(swift_container, obj_name)
         else:
             if not self.fast:
                 self._update_local_cache_from_swift(swift_container, obj_name)  # DELETE! (Only for test purposes)
-            self.logger.info('Blackeagle - ' + swift_container +
-                             '/' + obj_name + ' in cache.')
+            self.logger.info(swift_container + '/' + obj_name + ' in cache.')
 
         return True
 
@@ -147,9 +146,12 @@ class DockerGateway():
         :param obj_name: Name of the function or dependency
         """
         # if enter to this method means that the objects exist in cache
-        cached_target_obj = os.path.join(self.conf["cache_dir"], self.scope,
-                                         'function', swift_container, obj_name)
-        docker_target_dir = os.path.join(self.conf["function_dir"], self.scope, function_main)
+        cached_target_obj = os.path.join(self.scope_dir,
+                                         self.conf["cache_dir"],
+                                         swift_container, obj_name)
+        docker_target_dir = os.path.join(self.scope_dir,
+                                         self.conf["java_runtime_dir"],
+                                         function_main)
         docker_target_obj = os.path.join(docker_target_dir, obj_name)
         update_from_cache = False
 
@@ -169,7 +171,7 @@ class DockerGateway():
                 update_from_cache = True
 
         if update_from_cache:
-            self.logger.info('Blackeagle - Going to update from cache: ' +
+            self.logger.info('Going to update from cache: ' +
                              swift_container + '/' + obj_name)
             copy2(cached_target_obj, docker_target_obj)
             metadata = get_object_metadata(cached_target_obj)
@@ -183,8 +185,9 @@ class DockerGateway():
         :param obj_name: object name
         :returns: swift metadata dictionary
         """
-        cached_target_obj = os.path.join(self.conf["cache_dir"], self.scope,
-                                         'function', swift_container, obj_name)
+        cached_target_obj = os.path.join(self.scope_dir,
+                                         self.conf["cache_dir"],
+                                         swift_container, obj_name)
         metadata = get_object_metadata(cached_target_obj)
 
         return metadata

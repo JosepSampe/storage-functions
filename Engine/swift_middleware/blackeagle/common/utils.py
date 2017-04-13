@@ -175,7 +175,7 @@ def verify_access(ctx, path):
     :param path: swift path of the object to check
     :returns: headers of the object whether exists
     """
-    ctx.logger.debug('Blackeagle - Verifying access to %s' % path)
+    ctx.logger.debug('Verifying access to %s' % path)
 
     new_env = dict(ctx.request.environ)
     if 'HTTP_TRANSFER_ENCODING' in new_env.keys():
@@ -204,8 +204,7 @@ def create_link(ctx, link_path, dest_path, heads):
     :param dest_path: swift path of the object to link
     :param heads: original object headers
     """
-    ctx.logger.debug('Blackeagle - Creating link from %s to %s' % (link_path,
-                                                                   dest_path))
+    ctx.logger.debug('Creating link from %s to %s' % (link_path, dest_path))
 
     new_env = dict(ctx.request.environ)
     if 'HTTP_TRANSFER_ENCODING' in new_env.keys():
@@ -302,7 +301,7 @@ def set_function_container(ctx, trigger, function):
     try:
         function_dict = get_function_dict_container(metadata)
     except:
-        raise ValueError('Blackeagle - ERROR: There was an error getting trigger'
+        raise ValueError('ERROR: There was an error getting trigger'
                          ' dictionary from the object.\n')
 
     if not function_dict:
@@ -326,7 +325,7 @@ def set_function_container(ctx, trigger, function):
                 del metadata[sysmeta_key]
         set_container_metadata(ctx, metadata)
     except:
-        raise ValueError('Blackeagle - ERROR: There was an error setting trigger'
+        raise ValueError('ERROR: There was an error setting trigger'
                          ' dictionary from the object.\n')
 
 
@@ -339,7 +338,7 @@ def delete_function_container(ctx, trigger, function):
     :param function: function name
     :raises ValueError: If it fails
     """
-    ctx.logger.debug('Blackeagle - Go to delete "' + function +
+    ctx.logger.debug('Go to delete "' + function +
                      '" function from "' + trigger + '" trigger')
 
     container = os.path.join('/', ctx.api_version, ctx.account, ctx.container)
@@ -347,7 +346,7 @@ def delete_function_container(ctx, trigger, function):
     try:
         function_dict = get_function_dict_container(metadata)
     except:
-        raise ValueError('Blackeagle - ERROR: There was an error getting trigger'
+        raise ValueError('ERROR: There was an error getting trigger'
                          ' metadata from the object.\n')
 
     try:
@@ -384,7 +383,7 @@ def delete_function_container(ctx, trigger, function):
 
         set_container_metadata(ctx, metadata)
     except:
-        raise ValueError('Blackeagle - Error: Function "' + function + '" not'
+        raise ValueError('Error: Function "' + function + '" not'
                          ' assigned to the "' + trigger + '" trigger.\n')
 
 
@@ -403,7 +402,7 @@ def set_function_object(ctx, trigger, function):
     try:
         function_dict = get_function_dict_object(ctx)
     except:
-        raise ValueError('Blackeagle - ERROR: There was an error getting trigger'
+        raise ValueError('ERROR: There was an error getting trigger'
                          ' dictionary from the object.\n')
 
     if not function_dict:
@@ -435,7 +434,7 @@ def set_function_object(ctx, trigger, function):
         set_object_metadata(data_file, metadata)
     except Exception as e:
         print e
-        raise ValueError('Blackeagle - ERROR: There was an error setting trigger'
+        raise ValueError('ERROR: There was an error setting trigger'
                          ' dictionary from the object.\n')
 
 
@@ -448,14 +447,14 @@ def delete_function_object(ctx, trigger, function):
     :param function: function name
     :raises ValueError: If it fails
     """
-    ctx.logger.debug('Blackeagle - Going to delete "' + function +
+    ctx.logger.debug('Going to delete "' + function +
                      '" function from "' + trigger + '" trigger')
 
     try:
         data_file = get_data_file(ctx)
         metadata = get_object_metadata(data_file)
     except:
-        raise ValueError('Blackeagle - ERROR: There was an error getting trigger'
+        raise ValueError('ERROR: There was an error getting trigger'
                          ' metadata from the object.\n')
 
     try:
@@ -489,11 +488,11 @@ def delete_function_object(ctx, trigger, function):
                 raise
         set_object_metadata(data_file, metadata)
     except:
-        raise ValueError('Blackeagle - Error: Function "' + function + '" not'
+        raise ValueError('Error: Function "' + function + '" not'
                          ' assigned to the "' + trigger + '" trigger.\n')
 
     data_dir = get_data_dir(ctx)
-    ctx.logger.debug('Blackeagle - Object path: ' + data_dir)
+    ctx.logger.debug('Object path: ' + data_dir)
 
 
 def clean_function_dict_object(function_metadata):

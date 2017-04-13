@@ -40,7 +40,7 @@ class ProxyHandler(BaseHandler):
         """
         obj = os.path.join(self.account, self.container, self.obj)
         path = "/mnt/data/swift_cache/"+obj
-        self.logger.info('Blackeagle - Checking in cache: ' + obj)
+        self.logger.info('Checking in cache: ' + obj)
 
         return os.path.isfile(path)
 
@@ -51,7 +51,7 @@ class ProxyHandler(BaseHandler):
         """
         obj = os.path.join(self.account, self.container, self.obj)
         path = "/mnt/data/swift_cache/"+obj
-        self.logger.info('Blackeagle - Object %s in cache', obj)
+        self.logger.info('Object %s in cache', obj)
 
         with open(path, 'r') as f:
             data = f.read()
@@ -66,7 +66,7 @@ class ProxyHandler(BaseHandler):
         obj = os.path.join(self.account, self.container, self.obj)
         path = "/mnt/data/swift_cache/"+obj
         if self.request.headers['X-Object-Prefetch'] == 'True':
-            self.logger.info('Blackeagle - Putting into cache '+obj)
+            self.logger.info('Putting into cache '+obj)
             new_req = self.request.copy_get()
             new_req.headers['function-enabled'] = False
             response = new_req.get_response(self.app)
@@ -96,7 +96,7 @@ class ProxyHandler(BaseHandler):
         :return: True/False
         """
         obj = os.path.join(self.account, self.container, self.obj)
-        self.logger.info('Blackeagle - Checking in cache: ' + obj)
+        self.logger.info('Checking in cache: ' + obj)
         self.cached_object = self.memcache.get(obj)
         # self.cached_object = None
 
@@ -108,7 +108,7 @@ class ProxyHandler(BaseHandler):
         :return: Response object
         """
         obj = os.path.join(self.account, self.container, self.obj)
-        self.logger.info('Blackeagle - Object %s in cache', obj)
+        self.logger.info('Object %s in cache', obj)
         cached_obj = pickle.loads(self.cached_object)
         resp_headers = cached_obj["Headers"]
         resp_headers['content-length'] = len(cached_obj["Body"])
@@ -121,7 +121,7 @@ class ProxyHandler(BaseHandler):
     def _prefetch_object_memcache(self):
         obj = os.path.join(self.account, self.container, self.obj)
         if self.request.headers['X-Object-Prefetch'] == 'True':
-            self.logger.info('Blackeagle - Putting into cache '+obj)
+            self.logger.info('Putting into cache '+obj)
             new_req = self.request.copy_get()
             new_req.headers['function-enabled'] = False
             response = new_req.get_response(self.app)
@@ -179,7 +179,7 @@ class ProxyHandler(BaseHandler):
                 raise HTTPUnauthorized('Unauthorized to access to this '
                                        'resource: ' + cont + '/' + obj + '\n')
             else:
-                raise HTTPNotFound('Blackeagle - Object error: "' + cont + '/' +
+                raise HTTPNotFound('Object error: "' + cont + '/' +
                                    obj + '" doesn\'t exists in Swift.\n')
         else:
             return response
@@ -207,7 +207,7 @@ class ProxyHandler(BaseHandler):
                     if response.is_success:
                         obj_list.append(pseudo_folder)
                     else:
-                        raise ValueError("Blackeagle - Error creating pseudo-folder")
+                        raise ValueError("Error creating pseudo-folder")
 
     def _get_object_list(self, path):
         """
@@ -376,7 +376,7 @@ class ProxyHandler(BaseHandler):
             if response.is_success:
                 response = create_link(self, link_path, dest_path, headers)
         else:
-            msg = ("Blackeagle - Error: Link path and destination path "
+            msg = ("Error: Link path and destination path "
                    "cannot be the same.\n")
             response = Response(body=msg, headers={'etag': ''},
                                 request=self.request)
@@ -400,7 +400,7 @@ class ProxyHandler(BaseHandler):
         return response
 
     def _get_response_from_middlebox(self):
-        self.logger.info('Blackeagle - I am the Middlebox')
+        self.logger.info('I am the Middlebox')
         response_timeout = 5
         path = '/%s/%s/%s' % (self.account, self.container, self.obj)
         data = eval(self.request.headers['Middlebox'])
@@ -440,7 +440,7 @@ class ProxyHandler(BaseHandler):
 
         elif f_data['command'] == 'STORLET':
             slist = f_data['list']
-            self.logger.info('Blackeagle - Go to execute Storlets: ' + str(slist))
+            self.logger.info('Go to execute Storlets: ' + str(slist))
             self.apply_storlet_on_put(slist)
 
         elif f_data['command'] == 'REWIRE':
@@ -502,7 +502,7 @@ class ProxyHandler(BaseHandler):
             self.request.headers.update(function_metadata)
             f_list = get_function_list_object(function_metadata, self.method)
             if f_list:
-                self.logger.info('Blackeagle - There are functions' +
+                self.logger.info('There are functions' +
                                  ' to execute: ' + str(f_list))
                 self._setup_docker_gateway()
                 f_data = self.f_docker_gateway.execute_function(f_list)
