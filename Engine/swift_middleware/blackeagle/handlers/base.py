@@ -71,9 +71,9 @@ class BaseHandler(object):
         self.request.headers['X-Project-Id'] = self.account.replace('AUTH_', '')
         self.request.headers['X-Container'] = self.container
         self.request.headers['X-Object'] = self.obj
-        self.f_docker_gateway = DockerGateway(self.request, response,
-                                              self.conf, self.logger,
-                                              self.account)
+        self.docker_gateway = DockerGateway(self.request, response,
+                                            self.conf, self.logger,
+                                            self.account)
 
     def _setup_storlet_gateway(self):
         self.storlet_gateway = StorletGateway(
@@ -216,22 +216,18 @@ class BaseHandler(object):
         return 'Middlebox' in self.request.headers
 
     @property
-    def is_trigger_assignation(self):
+    def is_function_set(self):
         return any((True for x in self.available_assignation_headers
                     if x in self.request.headers.keys()))
 
     @property
-    def is_trigger_deletion(self):
+    def is_function_unset(self):
         return any((True for x in self.available_deletion_headers
                     if x in self.request.headers.keys()))
 
     @property
     def is_object_prefetch(self):
         return 'X-Object-Prefetch' in self.request.headers
-
-    @property
-    def is_object_move(self):
-        return 'X-Link-To' in self.request.headers
 
     def is_slo_response(self, resp):
         self.logger.debug(
@@ -336,7 +332,7 @@ class BaseHandler(object):
         in GET flow
         """
         if self.obj.endswith('/'):
-            # is a pseudo-folder
+            # it is a pseudo-folder
             f_list = None
         else:
             f_list = get_function_list_object(response.headers, self.method)
@@ -344,7 +340,7 @@ class BaseHandler(object):
         if f_list:
             self.logger.info('There are functions to execute: ' + str(f_list))
             self._setup_docker_gateway(response)
-            f_data = self.f_docker_gateway.execute_function(f_list)
+            f_data = self.docker_gateway.execute_function(f_list)
             response = self._process_function_data_resp(response, f_data)
 
             # Delete the function headers to no propagate the function execution

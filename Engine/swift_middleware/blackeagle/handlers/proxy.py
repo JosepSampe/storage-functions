@@ -1,7 +1,7 @@
 from blackeagle.handlers import BaseHandler
-from blackeagle.common.utils import verify_access, create_link
+from blackeagle.common.utils import verify_access
 from blackeagle.common.utils import set_function_container
-from blackeagle.common.utils import delete_function_container
+from blackeagle.common.utils import unset_function_from_container
 from blackeagle.common.utils import get_function_list_object
 from blackeagle.common.utils import set_object_metadata
 from blackeagle.common.utils import get_object_metadata
@@ -33,7 +33,7 @@ class ProxyHandler(BaseHandler):
     def _parse_vaco(self):
         return self.request.split_path(3, 4, rest_with_last=True)
 
-    def _is_object_in_cache(self):
+    def _is_object_in_cache_disk(self):
         """
         Checks if an object is in cache.
         :return: True/False
@@ -44,7 +44,7 @@ class ProxyHandler(BaseHandler):
 
         return os.path.isfile(path)
 
-    def _get_cached_object(self):
+    def _get_cached_object_disk(self):
         """
         Gets the object from local cache.
         :return: Response object
@@ -62,7 +62,7 @@ class ProxyHandler(BaseHandler):
                             request=self.request)
         return response
 
-    def _prefetch_object(self):
+    def _prefetch_object_disk(self):
         obj = os.path.join(self.account, self.container, self.obj)
         path = "/mnt/data/swift_cache/"+obj
         if self.request.headers['X-Object-Prefetch'] == 'True':
@@ -81,7 +81,7 @@ class ProxyHandler(BaseHandler):
                 return Response(body='Prefetched: '+obj+'\n', request=self.request)
 
             else:
-                return Response(body='An error was occurred prefetcheing: '+obj+'\n',
+                return Response(body='An error was occurred prefetching: '+obj+'\n',
                                 request=self.request)
 
         elif self.request.headers['X-Object-Prefetch'] == 'False':
@@ -243,20 +243,6 @@ class ProxyHandler(BaseHandler):
 
         return obj_list
 
-    def _get_linked_object(self, dest_obj):
-        """
-        Makes a subrequest to the provided container/object
-        :param dest_obj: container/object
-        :return: swift.common.swob.Response Instance
-        """
-        dest_path = os.path.join('/', self.api_version, self.account, dest_obj)
-        new_env = dict(self.request.environ)
-        sub_req = make_subrequest(new_env, 'GET', dest_path,
-                                  headers=self.request.headers,
-                                  swift_source='function_middleware')
-
-        return sub_req.get_response(self.app)
-
     def _get_parent_vertigo_metadata(self):
         """
         Makes a HEAD to the parent pseudo-folder or container (7ms overhead)
@@ -315,16 +301,14 @@ class ProxyHandler(BaseHandler):
 
         return vertigo_metadata
 
-    def _process_function_assignation_deletion_request(self):
+    def _set_function(self):
         """
-        Process both function assignation and function deletion over an object
-        or a group of objects
+        Process both function assignation over an object or a group of objects
         """
         self.request.method = 'PUT'
         obj_list = list()
-        if self.is_trigger_assignation:
-            _, function = self.get_function_assignation_data()
-            self._verify_access(self.function_container, function)
+        _, function = self.get_function_assignation_data()
+        self._verify_access(self.function_container, function)
 
         if '*' in self.obj:
             obj_list = self._get_object_list(self.obj)
@@ -335,57 +319,57 @@ class ProxyHandler(BaseHandler):
 
         if self.obj == '*':
             # Save function information into container metadata
-            if self.is_trigger_assignation:
-                trigger, function = self.get_function_assignation_data()
-                set_function_container(self, trigger, function)
-            elif self.is_trigger_deletion:
-                trigger, function = self.get_function_deletion_data()
-                delete_function_container(self, trigger, function)
+            trigger, function = self.get_function_assignation_data()
+            set_function_container(self, trigger, function)
 
         for obj in obj_list:
             self.request.body = specific_md
             response = self._verify_access(self.container, obj)
             new_path = os.path.join('/', self.api_version, self.account, self.container, obj)
-            if response.headers['Content-Type'] == 'link':
-                link = response.headers["X-Object-Sysmeta-Link-to"]
-                container, obj = link.split('/', 2)
-                self._verify_access(container, obj)
-                new_path = os.path.join('/', self.api_version, self.account, container, obj)
             self.request.environ['PATH_INFO'] = new_path
             self._augment_empty_request()
 
             response = self.request.get_response(self.app)
+            if not response.is_success():
+                # TODO: send back an error message
+                break
 
         return response
 
-    def _process_object_move_and_link(self):
+    def _unset_function(self):
         """
-        Moves an object to the destination path and leaves a soft link in
-        the original path.
+        Unset a specified function from the trigger of an object or a group of
+        objects.
         """
-        link_path = os.path.join(self.container, self.obj)
-        dest_path = self.request.headers['X-Link-To']
-        if link_path != dest_path:
-            response = self._verify_access(self.container, self.obj)
-            headers = response.headers
-            if "X-Object-Sysmeta-Link-To" not in response.headers \
-                    and response.headers['Content-Type'] != 'link':
-                self.request.method = 'COPY'
-                self.request.headers['Destination'] = dest_path
-                response = self.request.get_response(self.app)
-            if response.is_success:
-                response = create_link(self, link_path, dest_path, headers)
+        self.request.method = 'PUT'
+        obj_list = list()
+
+        if '*' in self.obj:
+            obj_list = self._get_object_list(self.obj)
         else:
-            msg = ("Error: Link path and destination path "
-                   "cannot be the same.\n")
-            response = Response(body=msg, headers={'etag': ''},
-                                request=self.request)
+            obj_list.append(self.obj)
+
+        if self.obj == '*':
+            # Deletes the assignation information from the container
+            trigger, function = self.get_function_deletion_data()
+            unset_function_from_container(self, trigger, function)
+
+        for obj in obj_list:
+            response = self._verify_access(self.container, obj)
+            new_path = os.path.join('/', self.api_version, self.account, self.container, obj)
+            self.request.environ['PATH_INFO'] = new_path
+            self._augment_empty_request()
+
+            response = self.request.get_response(self.app)
+            if not response.is_success():
+                # TODO: send back an error message
+                break
+
         return response
 
     def _get_object_trough_middlebox(self, response):
-        data = eval(response.headers['Middlebox'])
-        node = data['compute_node']
-        port = str(data['compute_port'])
+        node = 'compute1'
+        port = 8080
         url = os.path.join('http://', node+':'+port, self.api_version, self.account)
         parsed, conn = http_connection(url)
         path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
@@ -397,6 +381,7 @@ class ProxyHandler(BaseHandler):
             resp_headers[header] = value
         response.headers.update(resp_headers)
         response.app_iter = DataIter(resp, 5)
+
         return response
 
     def _get_response_from_middlebox(self):
@@ -418,6 +403,7 @@ class ProxyHandler(BaseHandler):
         for header, value in resp.getheaders():
             resp_headers[header] = value.replace('"', '')
         response = Response(app_iter=DataIter(resp, 10), headers=resp_headers, request=self.request)
+
         return response
 
     def _process_function_data_req(self, f_data):
@@ -476,6 +462,8 @@ class ProxyHandler(BaseHandler):
         response = self.apply_function_on_get(response)
 
         if 'Middlebox' in response.headers:
+            # The Object Storage node does not have enough resources, we need
+            # to get the object through the Middlebox.
             response = self._get_object_trough_middlebox(response)
 
         if 'Content-Length' not in response.headers and \
@@ -489,13 +477,13 @@ class ProxyHandler(BaseHandler):
         """
         PUT handler on Proxy
         """
-        if self.is_trigger_assignation or self.is_trigger_deletion:
-            response = self._process_function_assignation_deletion_request()
-        elif self.is_object_move:
-            response = self._process_object_move_and_link()
+        if self.is_function_set:
+            response = self._set_function()
+        elif self.is_function_unset:
+            response = self._unset_function()
         else:
-            # When a user puts an object, the function assigned to the
-            # parent container or pseudo-folder are assigned by default to
+            # Normal PUT. When a user puts an object, the function assigned to
+            # the parent container or pseudo-folder are assigned by default to
             # the new object. Onput functions are executed here.
             # start = time.time()
             function_metadata = self._get_parent_vertigo_metadata()
@@ -505,10 +493,10 @@ class ProxyHandler(BaseHandler):
                 self.logger.info('There are functions' +
                                  ' to execute: ' + str(f_list))
                 self._setup_docker_gateway()
-                f_data = self.f_docker_gateway.execute_function(f_list)
+                f_data = self.docker_gateway.execute_function(f_list)
                 # end = time.time() - start
                 response = self._process_function_data_req(f_data)
-                # f = open("/tmp/vertigo/vertigo_put_overhead.log", 'a')
+                # f = open("/tmp/function_put_overhead.log", 'a')
                 # f.write(str(int(round(end * 1000)))+'\n')
                 # f.close()
             else:
@@ -521,12 +509,10 @@ class ProxyHandler(BaseHandler):
         """
         POST handler on Proxy
         """
-        if self.is_trigger_assignation or self.is_trigger_deletion:
-            response = self._process_function_assignation_deletion_request()
-        elif self.is_object_prefetch:
-            response = self._prefetch_object()
-        elif self.is_object_move:
-            response = self._process_object_move_and_link()
+        if self.is_function_set:
+            response = self._set_function()
+        elif self.is_function_unset:
+            response = self._unset_function()
         else:
             response = self.request.get_response(self.app)
 

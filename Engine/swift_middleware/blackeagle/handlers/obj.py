@@ -2,7 +2,7 @@ from swift.common.swob import HTTPMethodNotAllowed, Response
 from swift.common.utils import public
 from blackeagle.handlers import BaseHandler
 from blackeagle.common.utils import set_function_object
-from blackeagle.common.utils import delete_function_object
+from blackeagle.common.utils import unset_function_object
 
 
 class ObjectHandler(BaseHandler):
@@ -30,14 +30,13 @@ class ObjectHandler(BaseHandler):
 
     def _generate_middlebox_response(self):
         data = dict()
-        data['compute_node'] = 'compute1'
-        data['compute_port'] = 8080
-        data['storage_node'] = self.request.environ['SERVER_NAME']  # me
+        data['storage_node'] = self.request.environ['SERVER_NAME']
         data['storage_port'] = self.request.environ['SERVER_PORT']
         data['policy'] = self.request.headers['X-Backend-Storage-Policy-Index']
         data['device'] = self.device
         data['part'] = self.part
         response = Response(body='', headers={'Middlebox': data}, request=self.request)
+
         return response
 
     @public
@@ -45,7 +44,7 @@ class ObjectHandler(BaseHandler):
         """
         GET handler on Object
         """
-        available_compute_resources = True
+        available_compute_resources = False
 
         if not self.is_middlebox_request and not available_compute_resources:
             response = self._generate_middlebox_response()
@@ -61,7 +60,7 @@ class ObjectHandler(BaseHandler):
         """
         PUT handler on Object
         """
-        if self.is_trigger_assignation:
+        if self.is_function_set:
             trigger, function = self.get_function_assignation_data()
 
             try:
@@ -75,11 +74,11 @@ class ObjectHandler(BaseHandler):
             response = Response(body=msg, headers={'etag': ''},
                                 request=self.request)
 
-        elif self.is_trigger_deletion:
+        elif self.is_function_unset:
             trigger, function = self.get_function_deletion_data()
 
             try:
-                delete_function_object(self, trigger, function)
+                unset_function_object(self, trigger, function)
                 msg = 'Function "' + function +\
                       '" correctly removed from the "' + trigger + '" trigger.\n'
             except ValueError as e:
@@ -87,10 +86,6 @@ class ObjectHandler(BaseHandler):
 
             response = Response(body=msg, headers={'etag': ''},
                                 request=self.request)
-
-        elif self.request.headers['Content-Type'] == 'link':
-            response = self.request.get_response(self.app)
-            response.headers['Content-Type'] = 'link'
 
         else:
             response = self.request.get_response(self.app)

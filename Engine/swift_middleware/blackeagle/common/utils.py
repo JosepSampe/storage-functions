@@ -195,42 +195,6 @@ def verify_access(ctx, path):
     return sub_req.get_response(ctx.app)
 
 
-def create_link(ctx, link_path, dest_path, heads):
-    """
-    Creates a link to a real object
-
-    :param ctx: swift_ctx.ctx_handler.ctxProxyHandler instance
-    :param link_path: swift path of the link
-    :param dest_path: swift path of the object to link
-    :param heads: original object headers
-    """
-    ctx.logger.debug('Creating link from %s to %s' % (link_path, dest_path))
-
-    new_env = dict(ctx.request.environ)
-    if 'HTTP_TRANSFER_ENCODING' in new_env.keys():
-        del new_env['HTTP_TRANSFER_ENCODING']
-
-    if 'HTTP_X_COPY_FROM' in new_env.keys():
-        del new_env['HTTP_X_COPY_FROM']
-
-    auth_token = ctx.request.headers.get('X-Auth-Token')
-
-    link_path = os.path.join('/', ctx.api_version,
-                             ctx.account, link_path)
-
-    sub_req = make_subrequest(
-        new_env, 'PUT', link_path,
-        headers={'X-Auth-Token': auth_token,
-                 'Content-Length': 0,
-                 'Content-Type': 'link',
-                 'Original-Content-Length': heads["Content-Length"],
-                 'X-Object-Sysmeta-Link-To': dest_path},
-        swift_source='function_middleware')
-    resp = sub_req.get_response(ctx.app)
-
-    return resp
-
-
 def get_data_dir(ctx):
     """
     Gets the data directory full path
@@ -329,16 +293,16 @@ def set_function_container(ctx, trigger, function):
                          ' dictionary from the object.\n')
 
 
-def delete_function_container(ctx, trigger, function):
+def unset_function_from_container(ctx, trigger, function):
     """
-    Deletes a function to the specified object in the main request
+    Unsets a function to the specified object in the main request
 
     :param ctx: ObjectHandler instance
     :param trigger: trigger name
     :param function: function name
     :raises ValueError: If it fails
     """
-    ctx.logger.debug('Go to delete "' + function +
+    ctx.logger.debug('Going to unset "' + function +
                      '" function from "' + trigger + '" trigger')
 
     container = os.path.join('/', ctx.api_version, ctx.account, ctx.container)
@@ -438,16 +402,16 @@ def set_function_object(ctx, trigger, function):
                          ' dictionary from the object.\n')
 
 
-def delete_function_object(ctx, trigger, function):
+def unset_function_object(ctx, trigger, function):
     """
-    Deletes a function to the specified object in the main request
+    Unsets a function to the specified object in the main request
 
     :param ctx: ObjectHandler instance
     :param trigger: trigger name
     :param function: function name
     :raises ValueError: If it fails
     """
-    ctx.logger.debug('Going to delete "' + function +
+    ctx.logger.debug('Going to unset "' + function +
                      '" function from "' + trigger + '" trigger')
 
     try:
