@@ -4,6 +4,7 @@ from swift.common.utils import config_true_value
 from blackeagle.gateways import DockerGateway
 from blackeagle.gateways import StorletGateway
 from blackeagle.common.utils import DataFdIter
+from blackeagle.common.utils import DataIter
 from blackeagle.common.utils import get_function_list_object
 import os
 
@@ -244,6 +245,45 @@ class BaseHandler(object):
                     self.account, self.container, self.obj))
         return is_slo
 
+    def _process_function_data_req(self, f_data):
+        """
+        Processes the data returned from the function
+        """
+        if f_data['command'] == 'DATA_WRITE':
+            data_read_fd = f_data['read_fd']
+            self.request.environ['wsgi.input'] = DataFdIter(data_read_fd)
+            if 'request_headers' in f_data:
+                self.request.headers.update(f_data['request_headers'])
+            if 'object_metadata' in f_data:
+                self.request.headers.update(f_data['object_metadata'])
+
+        elif f_data['command'] == 'CONTINUE':
+            if 'request_headers' in f_data:
+                self.request.headers.update(f_data['request_headers'])
+            if 'object_metadata' in f_data:
+                self.request.headers.update(f_data['object_metadata'])
+
+        elif f_data['command'] == 'STORLET':
+            slist = f_data['list']
+            self.logger.info('Go to execute Storlets: ' + str(slist))
+            self.apply_storlet_on_put(slist)
+
+        elif f_data['command'] == 'REWIRE':
+            pass
+            # TODO
+
+        elif f_data['command'] == 'CANCEL':
+            msg = f_data['message']
+            return Response(body=msg + '\n', headers={'etag': ''},
+                            request=self.request)
+
+        response = self.request.get_response(self.app)
+
+        if 'response_headers' in f_data:
+            response.headers.update(f_data['response_headers'])
+
+        return response
+
     def _process_function_data_resp(self, response, f_data):
         """
         Processes the data returned from the function
@@ -326,7 +366,7 @@ class BaseHandler(object):
             self.request.environ.pop('CONTENT_LENGTH')
         self.request.headers['Transfer-Encoding'] = 'chunked'
 
-    def apply_function_on_get(self, response):
+    def apply_function_on_post_get(self, response):
         """
         Call gateway module to get result of function execution
         in GET flow

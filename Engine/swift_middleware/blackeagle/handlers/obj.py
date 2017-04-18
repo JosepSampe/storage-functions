@@ -51,7 +51,7 @@ class ObjectHandler(BaseHandler):
         else:
             response = self.request.get_response(self.app)
             if not self.is_middlebox_request:
-                response = self.apply_function_on_get(response)
+                response = self.apply_function_on_post_get(response)
 
         return response
 
@@ -65,8 +65,8 @@ class ObjectHandler(BaseHandler):
 
             try:
                 set_function_object(self, trigger, function)
-                msg = 'Function "' + function + \
-                      '" correctly assigned to the "' + trigger + '" trigger.\n'
+                msg = 'Function "' + function + '" correctly assigned to ' \
+                      'the "' + trigger + '" trigger.\n'
             except ValueError as e:
                 msg = e.args[0]
             self.logger.info(msg)
@@ -79,8 +79,8 @@ class ObjectHandler(BaseHandler):
 
             try:
                 unset_function_object(self, trigger, function)
-                msg = 'Function "' + function +\
-                      '" correctly removed from the "' + trigger + '" trigger.\n'
+                msg = 'Function "' + function + '" correctly removed from ' \
+                      'the "' + trigger + '" trigger.\n'
             except ValueError as e:
                 msg = e.args[0]
 

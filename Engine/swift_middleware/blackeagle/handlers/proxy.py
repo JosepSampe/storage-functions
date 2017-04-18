@@ -2,15 +2,13 @@ from blackeagle.handlers import BaseHandler
 from blackeagle.common.utils import verify_access
 from blackeagle.common.utils import set_function_container
 from blackeagle.common.utils import unset_function_from_container
-from blackeagle.common.utils import get_function_list_object
-from blackeagle.common.utils import set_object_metadata
-from blackeagle.common.utils import get_object_metadata
 from blackeagle.common.utils import DataIter
+from blackeagle.common.utils import get_function_list_object
 
-from swift.common.swob import HTTPMethodNotAllowed, HTTPNotFound, HTTPUnauthorized, Response
+from swift.common.swob import HTTPMethodNotAllowed, HTTPNotFound
+from swift.common.swob import HTTPUnauthorized, Response
 from swift.common.utils import public, cache_from_env
 from swift.common.wsgi import make_subrequest
-import pickle
 import os
 
 from eventlet import Timeout
@@ -32,114 +30,6 @@ class ProxyHandler(BaseHandler):
 
     def _parse_vaco(self):
         return self.request.split_path(3, 4, rest_with_last=True)
-
-    def _is_object_in_cache_disk(self):
-        """
-        Checks if an object is in cache.
-        :return: True/False
-        """
-        obj = os.path.join(self.account, self.container, self.obj)
-        path = "/mnt/data/swift_cache/"+obj
-        self.logger.info('Checking in cache: ' + obj)
-
-        return os.path.isfile(path)
-
-    def _get_cached_object_disk(self):
-        """
-        Gets the object from local cache.
-        :return: Response object
-        """
-        obj = os.path.join(self.account, self.container, self.obj)
-        path = "/mnt/data/swift_cache/"+obj
-        self.logger.info('Object %s in cache', obj)
-
-        with open(path, 'r') as f:
-            data = f.read()
-
-        metadata = get_object_metadata(path)
-        response = Response(body=data,
-                            headers=metadata,
-                            request=self.request)
-        return response
-
-    def _prefetch_object_disk(self):
-        obj = os.path.join(self.account, self.container, self.obj)
-        path = "/mnt/data/swift_cache/"+obj
-        if self.request.headers['X-Object-Prefetch'] == 'True':
-            self.logger.info('Putting into cache '+obj)
-            new_req = self.request.copy_get()
-            new_req.headers['function-enabled'] = False
-            response = new_req.get_response(self.app)
-
-            if response.is_success:
-                if not os.path.exists(os.path.dirname(path)):
-                    os.makedirs(os.path.dirname(path))
-                with open(path, 'w') as fn:
-                    fn.write(response.body)
-                set_object_metadata(path, response.headers)
-
-                return Response(body='Prefetched: '+obj+'\n', request=self.request)
-
-            else:
-                return Response(body='An error was occurred prefetching: '+obj+'\n',
-                                request=self.request)
-
-        elif self.request.headers['X-Object-Prefetch'] == 'False':
-            if os.path.isfile(path):
-                os.remove(path)
-            return Response(body='Deleting '+obj+' from cache\n', request=self.request)
-
-    def _is_object_in_cache_memcache(self):
-        """
-        Checks if an object is in memcache. If exists, the object is stored
-        in self.cached_object.
-        :return: True/False
-        """
-        obj = os.path.join(self.account, self.container, self.obj)
-        self.logger.info('Checking in cache: ' + obj)
-        self.cached_object = self.memcache.get(obj)
-        # self.cached_object = None
-
-        return self.cached_object is not None
-
-    def _get_cached_object_memcache(self):
-        """
-        Gets the object from memcache.
-        :return: Response object
-        """
-        obj = os.path.join(self.account, self.container, self.obj)
-        self.logger.info('Object %s in cache', obj)
-        cached_obj = pickle.loads(self.cached_object)
-        resp_headers = cached_obj["Headers"]
-        resp_headers['content-length'] = len(cached_obj["Body"])
-
-        response = Response(body=cached_obj["Body"],
-                            headers=resp_headers,
-                            request=self.request)
-        return response
-
-    def _prefetch_object_memcache(self):
-        obj = os.path.join(self.account, self.container, self.obj)
-        if self.request.headers['X-Object-Prefetch'] == 'True':
-            self.logger.info('Putting into cache '+obj)
-            new_req = self.request.copy_get()
-            new_req.headers['function-enabled'] = False
-            response = new_req.get_response(self.app)
-
-            cached_obj = {}
-            cached_obj['Body'] = response.body
-            cached_obj["Headers"] = response.headers
-
-            if response.is_success:
-                self.memcache.set(obj, pickle.dumps(cached_obj))
-                return Response(body='Prefetched: '+obj+'\n', request=self.request)
-            else:
-                return Response(body='An error was occurred prefetcheing: '+obj+'\n',
-                                request=self.request)
-
-        elif self.request.headers['X-Object-Prefetch'] == 'False':
-            self.memcache.delete(obj)
-            return Response(body='Deleting '+obj+' from cache\n', request=self.request)
 
     def handle_request(self):
         if hasattr(self, self.request.method) and self.is_valid_request:
@@ -255,11 +145,13 @@ class ProxyHandler(BaseHandler):
             # object parent is pseudo-foldder
             psudo_folder = obj_split[0] + '/'
             f_key = 'X-Object-Sysmeta-Function-List'
-            dest_path = os.path.join('/', self.api_version, self.account, self.container, psudo_folder)
+            dest_path = os.path.join('/', self.api_version, self.account,
+                                     self.container, psudo_folder)
         else:
             # object parent is container
             f_key = 'X-Container-Sysmeta-Function-List'
-            dest_path = os.path.join('/', self.api_version, self.account, self.container)
+            dest_path = os.path.join('/', self.api_version, self.account,
+                                     self.container)
 
         # We first try to get the function execution list from the memcache
         function_metadata = self.memcache.get("function_"+dest_path)
@@ -367,9 +259,9 @@ class ProxyHandler(BaseHandler):
 
         return response
 
-    def _get_object_trough_middlebox(self, response):
+    def _handle_request_trough_middlebox(self, response):
         node = 'compute1'
-        port = 8080
+        port = '8080'
         url = os.path.join('http://', node+':'+port, self.api_version, self.account)
         parsed, conn = http_connection(url)
         path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
@@ -406,65 +298,24 @@ class ProxyHandler(BaseHandler):
 
         return response
 
-    def _process_function_data_req(self, f_data):
-        """
-        Processes the data returned from the function
-        """
-        if f_data['command'] == 'DATA_WRITE':
-            data_read_fd = f_data['read_fd']
-            self.request.environ['wsgi.input'] = DataIter(data_read_fd)
-            if 'request_headers' in f_data:
-                self.request.headers.update(f_data['request_headers'])
-            if 'object_metadata' in f_data:
-                self.request.headers.update(f_data['object_metadata'])
-
-        elif f_data['command'] == 'CONTINUE':
-            if 'request_headers' in f_data:
-                self.request.headers.update(f_data['request_headers'])
-            if 'object_metadata' in f_data:
-                self.request.headers.update(f_data['object_metadata'])
-
-        elif f_data['command'] == 'STORLET':
-            slist = f_data['list']
-            self.logger.info('Go to execute Storlets: ' + str(slist))
-            self.apply_storlet_on_put(slist)
-
-        elif f_data['command'] == 'REWIRE':
-            pass
-            # TODO
-
-        elif f_data['command'] == 'CANCEL':
-            msg = f_data['message']
-            return Response(body=msg + '\n', headers={'etag': ''},
-                            request=self.request)
-
-        response = self.request.get_response(self.app)
-
-        if 'response_headers' in f_data:
-            response.headers.update(f_data['response_headers'])
-
-        return response
-
     @public
     def GET(self):
         """
         GET handler on Proxy
         """
-        if self._is_object_in_cache():
-            response = self._get_cached_object()
+        if self.is_middlebox_request:
+            # I am a middlewbox
+            response = self._get_response_from_middlebox()
         else:
-            if self.is_middlebox_request:
-                # I am a middlewbox
-                response = self._get_response_from_middlebox()
-            else:
-                response = self.request.get_response(self.app)
+            response = self.request.get_response(self.app)
+        # self.request = self.apply_function_on_pre_get()
 
-        response = self.apply_function_on_get(response)
+        response = self.apply_function_on_post_get(response)
 
         if 'Middlebox' in response.headers:
             # The Object Storage node does not have enough resources, we need
             # to get the object through the Middlebox.
-            response = self._get_object_trough_middlebox(response)
+            response = self._handle_request_trough_middlebox(response)
 
         if 'Content-Length' not in response.headers and \
            'Transfer-Encoding' in response.headers:
@@ -482,10 +333,7 @@ class ProxyHandler(BaseHandler):
         elif self.is_function_unset:
             response = self._unset_function()
         else:
-            # Normal PUT. When a user puts an object, the function assigned to
-            # the parent container or pseudo-folder are assigned by default to
-            # the new object. Onput functions are executed here.
-            # start = time.time()
+            # Normal PUT. Onput Functions are applied here, if any.
             function_metadata = self._get_parent_vertigo_metadata()
             self.request.headers.update(function_metadata)
             f_list = get_function_list_object(function_metadata, self.method)
@@ -494,11 +342,7 @@ class ProxyHandler(BaseHandler):
                                  ' to execute: ' + str(f_list))
                 self._setup_docker_gateway()
                 f_data = self.docker_gateway.execute_function(f_list)
-                # end = time.time() - start
                 response = self._process_function_data_req(f_data)
-                # f = open("/tmp/function_put_overhead.log", 'a')
-                # f.write(str(int(round(end * 1000)))+'\n')
-                # f.close()
             else:
                 response = self.request.get_response(self.app)
 
