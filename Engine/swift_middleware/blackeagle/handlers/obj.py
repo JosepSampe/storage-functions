@@ -12,30 +12,31 @@ class ObjectHandler(BaseHandler):
             request, conf, app, logger)
 
     def _parse_vaco(self):
-        self.device, self.part, acc, cont, obj = self.request.split_path(
-            5, 5, rest_with_last=True)
+        self.device, self.part, acc, cont, obj = self.req.split_path(
+                                5, 5, rest_with_last=True)
         return ('v1', acc, cont, obj)
 
     def handle_request(self):
-        if hasattr(self, self.request.method) and self.is_valid_request:
+        if hasattr(self, self.req.method) and self.is_valid_request:
             try:
-                handler = getattr(self, self.request.method)
+                handler = getattr(self, self.req.method)
                 getattr(handler, 'publicly_accessible')
             except AttributeError:
-                return HTTPMethodNotAllowed(request=self.request)
+                return HTTPMethodNotAllowed(request=self.req)
             return handler()
         else:
-            return self.request.get_response(self.app)
-            # return HTTPMethodNotAllowed(request=self.request)
+            return self.req.get_response(self.app)
+            # return HTTPMethodNotAllowed(request=self.req)
 
     def _generate_middlebox_response(self):
         data = dict()
-        data['storage_node'] = self.request.environ['SERVER_NAME']
-        data['storage_port'] = self.request.environ['SERVER_PORT']
-        data['policy'] = self.request.headers['X-Backend-Storage-Policy-Index']
+        data['storage_node'] = self.req.environ['SERVER_NAME']
+        data['storage_port'] = self.req.environ['SERVER_PORT']
+        data['policy'] = self.req.headers['X-Backend-Storage-Policy-Index']
         data['device'] = self.device
         data['part'] = self.part
-        response = Response(body='', headers={'Middlebox': data}, request=self.request)
+        response = Response(body='', headers={'Middlebox': data},
+                            request=self.req)
 
         return response
 
@@ -49,7 +50,7 @@ class ObjectHandler(BaseHandler):
         if not self.is_middlebox_request and not available_compute_resources:
             response = self._generate_middlebox_response()
         else:
-            response = self.request.get_response(self.app)
+            response = self.req.get_response(self.app)
             if not self.is_middlebox_request:
                 response = self.apply_function_on_post_get(response)
 
@@ -72,7 +73,7 @@ class ObjectHandler(BaseHandler):
             self.logger.info(msg)
 
             response = Response(body=msg, headers={'etag': ''},
-                                request=self.request)
+                                request=self.req)
 
         elif self.is_function_unset:
             trigger, function = self.get_function_deletion_data()
@@ -85,9 +86,9 @@ class ObjectHandler(BaseHandler):
                 msg = e.args[0]
 
             response = Response(body=msg, headers={'etag': ''},
-                                request=self.request)
+                                request=self.req)
 
         else:
-            response = self.request.get_response(self.app)
+            response = self.req.get_response(self.app)
 
         return response

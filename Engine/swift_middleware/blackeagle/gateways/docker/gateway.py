@@ -15,12 +15,12 @@ MC_DEP_HEADER = "X-Object-Meta-Function-Library-Dependency"
 class DockerGateway():
 
     def __init__(self, request, response, conf, logger, account):
-        self.request = request
+        self.req = request
         self.response = response
         self.conf = conf
         self.logger = logger
         self.account = account
-        self.method = self.request.method.lower()
+        self.method = self.req.method.lower()
         self.scope = account[5:18]
         self.function_timeout = conf["function_timeout"]
         self.function_container = conf["function_container"]
@@ -37,7 +37,8 @@ class DockerGateway():
         self.pipes_path = os.path.join(self.scope_dir, conf["pipes_dir"])
         thread = libc.syscall(186)
         tid = str(thread % self.workers)
-        self.function_pipe_path = os.path.join(self.pipes_path, conf["function_pipe"]+"_"+tid)
+        self.function_pipe_path = os.path.join(self.pipes_path,
+                                               conf["function_pipe"]+"_"+tid)
 
     def execute_function(self, function_list):
         """
@@ -59,7 +60,7 @@ class DockerGateway():
         protocol = FunctionInvocationProtocol(object_stream,
                                               self.function_pipe_path,
                                               self.logger_path,
-                                              dict(self.request.headers),
+                                              dict(self.req.headers),
                                               object_headers,
                                               function_list,
                                               f_metadata,
@@ -71,20 +72,20 @@ class DockerGateway():
         if self.method == 'get':
             return self.response.app_iter
         if self.method == 'put':
-            return self.request.environ['wsgi.input']
+            return self.req.environ['wsgi.input']
 
     def _get_object_headers(self):
         headers = dict()
         if self.method == "get":
             headers = self.response.headers
         elif self.method == "put":
-            if 'Content-Length' in self.request.headers:
-                headers['Content-Length'] = self.request.headers['Content-Length']
-            if 'Content-Type' in self.request.headers:
-                headers['Content-Type'] = self.request.headers['Content-Type']
-            for header in self.request.headers:
+            if 'Content-Length' in self.req.headers:
+                headers['Content-Length'] = self.req.headers['Content-Length']
+            if 'Content-Type' in self.req.headers:
+                headers['Content-Type'] = self.req.headers['Content-Type']
+            for header in self.req.headers:
                 if header.startswith('X-Object'):
-                    headers[header] = self.request.headers[header]
+                    headers[header] = self.req.headers[header]
 
         return headers
 
@@ -103,7 +104,8 @@ class DockerGateway():
         if not os.path.exists(cache_target_path):
             os.makedirs(cache_target_path, 0o777)
 
-        resp = make_swift_request("GET", self.account, swift_container, obj_name)
+        resp = make_swift_request("GET", self.account,
+                                  swift_container, obj_name)
 
         with open(cache_target_obj, 'w') as fn:
             fn.write(resp.body)

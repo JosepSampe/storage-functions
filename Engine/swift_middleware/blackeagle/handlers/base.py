@@ -4,7 +4,6 @@ from swift.common.utils import config_true_value
 from blackeagle.gateways import DockerGateway
 from blackeagle.gateways import StorletGateway
 from blackeagle.common.utils import DataFdIter
-from blackeagle.common.utils import DataIter
 from blackeagle.common.utils import get_function_list_object
 import os
 
@@ -39,14 +38,19 @@ class BaseHandler(object):
     """
     This is an abstract handler for Proxy/Object Server middleware
     """
-    request = _request_instance_property()
+    req = _request_instance_property()
 
-    def __init__(self, request, conf, app, logger):
+    def __init__(self, req, conf, app, logger):
         """
-        :param request: swob.Request instance
+        :param req: swob.Request instance
         :param conf: gatway conf dict
         """
-        self.request = request
+        self.req = req
+        self.conf = conf
+        self.app = app
+        self.logger = logger
+        self.method = self.req.method.lower()
+        self.execution_server = conf["execution_server"]
         self.function_containers = [conf.get('function_container'),
                                     conf.get('function_dependency'),
                                     conf.get('storlet_container'),
@@ -59,27 +63,22 @@ class BaseHandler(object):
                                            'X-Function-Onput-Delete',
                                            'X-Function-Delete']
 
-        self.app = app
-        self.logger = logger
-        self.conf = conf
-        self.method = self.request.method.lower()
-        self.execution_server = conf["execution_server"]
-
     def _setup_docker_gateway(self, response=None):
-        self.request.headers['X-Current-Server'] = self.execution_server
-        self.request.headers['X-Method'] = self.method
-        self.request.headers['X-Current-Location'] = os.path.join("/", self.api_version, self.account, self.container)
-        self.request.headers['X-Project-Id'] = self.account.replace('AUTH_', '')
-        self.request.headers['X-Container'] = self.container
-        self.request.headers['X-Object'] = self.obj
-        self.docker_gateway = DockerGateway(self.request, response,
+        self.req.headers['X-Current-Server'] = self.execution_server
+        self.req.headers['X-Method'] = self.method
+        self.req.headers['X-Current-Location'] = os.path.join("/", self.api_version,
+                                                              self.account, self.container)
+        self.req.headers['X-Project-Id'] = self.account.replace('AUTH_', '')
+        self.req.headers['X-Container'] = self.container
+        self.req.headers['X-Object'] = self.obj
+        self.docker_gateway = DockerGateway(self.req, response,
                                             self.conf, self.logger,
                                             self.account)
 
     def _setup_storlet_gateway(self):
         self.storlet_gateway = StorletGateway(
             self.conf, self.logger, self.app, self.api_version,
-            self.account, self.request.method)
+            self.account, self.req.method)
 
     def _extract_vaco(self):
         """
@@ -93,19 +92,21 @@ class BaseHandler(object):
 
     def get_function_assignation_data(self):
         header = [i for i in self.available_assignation_headers
-                  if i in self.request.headers.keys()]
+                  if i in self.req.headers.keys()]
         if len(header) > 1:
-            raise HTTPUnauthorized('The system can only set 1 function each time.\n')
-        mc = self.request.headers[header[0]]
+            raise HTTPUnauthorized('The system can only set 1 '
+                                   'function at a time.\n')
+        mc = self.req.headers[header[0]]
 
         return header[0].rsplit('-', 1)[1].lower(), mc
 
     def get_function_deletion_data(self):
         header = [i for i in self.available_deletion_headers
-                  if i in self.request.headers.keys()]
+                  if i in self.req.headers.keys()]
         if len(header) > 1:
-            raise HTTPUnauthorized('The system can only delete 1 function each time.\n')
-        mc = self.request.headers[header[0]]
+            raise HTTPUnauthorized('The system can only unset 1 '
+                                   'function at a time.\n')
+        mc = self.req.headers[header[0]]
 
         return header[0].rsplit('-', 2)[1].lower(), mc
 
@@ -127,7 +128,7 @@ class BaseHandler(object):
 
     def _parse_vaco(self):
         """
-        Parse method of path from self.request which depends on child class
+        Parse method of path from self.req which depends on child class
         (Proxy or Object)
 
         :return tuple: a string tuple of (version, account, container, object)
@@ -147,25 +148,25 @@ class BaseHandler(object):
 
         :return: Whether storlet should be executed
         """
-        return 'X-Run-Storlet' in self.request.headers
+        return 'X-Run-Storlet' in self.req.headers
 
     @property
     def is_range_request(self):
         """
         Determines whether the request is a byte-range request
         """
-        return 'Range' in self.request.headers
+        return 'Range' in self.req.headers
 
     @property
     def is_storlet_range_request(self):
-        return 'X-Storlet-Range' in self.request.headers
+        return 'X-Storlet-Range' in self.req.headers
 
     @property
     def is_storlet_multiple_range_request(self):
         if not self.is_storlet_range_request:
             return False
 
-        r = self.request.headers['X-Storlet-Range']
+        r = self.req.headers['X-Storlet-Range']
         return len(Range(r).ranges) > 1
 
     @property
@@ -178,7 +179,7 @@ class BaseHandler(object):
     @property
     def is_function_object_put(self):
         return (self.container in self.function_containers and self.obj and
-                self.request.method == 'PUT')
+                self.req.method == 'PUT')
 
     @property
     def is_slo_get_request(self):
@@ -186,19 +187,19 @@ class BaseHandler(object):
         Determines from a GET request and its  associated response
         if the object is a SLO
         """
-        return self.request.params.get('multipart-manifest') == 'get'
+        return self.req.params.get('multipart-manifest') == 'get'
 
     @property
     def is_copy_request(self):
         """
         Determines from a GET request if is a copy request
         """
-        return 'X-Copy-From' in self.request.headers
+        return 'X-Copy-From' in self.req.headers
 
     @property
     def is_function_disabled(self):
-        if 'function-enabled' in self.request.headers:
-            return self.request.headers['function-enabled'] == 'False'
+        if 'function-enabled' in self.req.headers:
+            return self.req.headers['function-enabled'] == 'False'
         else:
             return False
 
@@ -209,26 +210,26 @@ class BaseHandler(object):
         """
         return not any([self.is_copy_request, self.is_slo_get_request,
                         self.is_function_disabled, self.is_function_container_request,
-                        not ((not self.obj and self.request.method == 'HEAD') or
+                        not ((not self.obj and self.req.method == 'HEAD') or
                              (self.obj))])
 
     @property
     def is_middlebox_request(self):
-        return 'Middlebox' in self.request.headers
+        return 'Middlebox' in self.req.headers
 
     @property
     def is_function_set(self):
         return any((True for x in self.available_assignation_headers
-                    if x in self.request.headers.keys()))
+                    if x in self.req.headers.keys()))
 
     @property
     def is_function_unset(self):
         return any((True for x in self.available_deletion_headers
-                    if x in self.request.headers.keys()))
+                    if x in self.req.headers.keys()))
 
     @property
     def is_object_prefetch(self):
-        return 'X-Object-Prefetch' in self.request.headers
+        return 'X-Object-Prefetch' in self.req.headers
 
     def is_slo_response(self, resp):
         self.logger.debug(
@@ -251,17 +252,17 @@ class BaseHandler(object):
         """
         if f_data['command'] == 'DATA_WRITE':
             data_read_fd = f_data['read_fd']
-            self.request.environ['wsgi.input'] = DataFdIter(data_read_fd)
+            self.req.environ['wsgi.input'] = DataFdIter(data_read_fd)
             if 'request_headers' in f_data:
-                self.request.headers.update(f_data['request_headers'])
+                self.req.headers.update(f_data['request_headers'])
             if 'object_metadata' in f_data:
-                self.request.headers.update(f_data['object_metadata'])
+                self.req.headers.update(f_data['object_metadata'])
 
         elif f_data['command'] == 'CONTINUE':
             if 'request_headers' in f_data:
-                self.request.headers.update(f_data['request_headers'])
+                self.req.headers.update(f_data['request_headers'])
             if 'object_metadata' in f_data:
-                self.request.headers.update(f_data['object_metadata'])
+                self.req.headers.update(f_data['object_metadata'])
 
         elif f_data['command'] == 'STORLET':
             slist = f_data['list']
@@ -275,9 +276,9 @@ class BaseHandler(object):
         elif f_data['command'] == 'CANCEL':
             msg = f_data['message']
             return Response(body=msg + '\n', headers={'etag': ''},
-                            request=self.request)
+                            request=self.req)
 
-        response = self.request.get_response(self.app)
+        response = self.req.get_response(self.app)
 
         if 'response_headers' in f_data:
             response.headers.update(f_data['response_headers'])
@@ -324,15 +325,15 @@ class BaseHandler(object):
         elif f_data['command'] == 'CANCEL':
             msg = f_data['message']
             return Response(body=msg + '\n', headers={'etag': ''},
-                            request=self.request)
+                            request=self.req)
 
     def is_account_storlet_enabled(self):
-        account_meta = get_account_info(self.request.environ, self.app)['meta']
+        account_meta = get_account_info(self.req.environ, self.app)['meta']
         storlets_enabled = account_meta.get('storlet-enabled', 'False')
         if not config_true_value(storlets_enabled):
             self.logger.debug('Account disabled for storlets')
             raise HTTPBadRequest('Error: Account disabled for'
-                                 ' storlets.\n', request=self.request)
+                                 ' storlets.\n', request=self.req)
         return True
 
     def apply_storlet_on_get(self, resp, storlet_list):
@@ -360,11 +361,11 @@ class BaseHandler(object):
         """
         self._setup_storlet_gateway()
         data_iter = req.environ['wsgi.input']
-        self.request = self.storlet_gateway.run(req, storlet_list, data_iter)
+        self.req = self.storlet_gateway.run(req, storlet_list, data_iter)
 
-        if 'CONTENT_LENGTH' in self.request.environ:
-            self.request.environ.pop('CONTENT_LENGTH')
-        self.request.headers['Transfer-Encoding'] = 'chunked'
+        if 'CONTENT_LENGTH' in self.req.environ:
+            self.req.environ.pop('CONTENT_LENGTH')
+        self.req.headers['Transfer-Encoding'] = 'chunked'
 
     def apply_function_on_post_get(self, response):
         """

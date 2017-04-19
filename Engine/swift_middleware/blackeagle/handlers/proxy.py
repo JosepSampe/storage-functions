@@ -25,23 +25,23 @@ class ProxyHandler(BaseHandler):
 
         self.function_container = self.conf["function_container"]
         self.memcache = None
-        self.request.headers['function-enabled'] = True
-        self.memcache = cache_from_env(self.request.environ)
+        self.req.headers['function-enabled'] = True
+        self.memcache = cache_from_env(self.req.environ)
 
     def _parse_vaco(self):
-        return self.request.split_path(3, 4, rest_with_last=True)
+        return self.req.split_path(3, 4, rest_with_last=True)
 
     def handle_request(self):
-        if hasattr(self, self.request.method) and self.is_valid_request:
+        if hasattr(self, self.req.method) and self.is_valid_request:
             try:
-                handler = getattr(self, self.request.method)
+                handler = getattr(self, self.req.method)
                 getattr(handler, 'publicly_accessible')
             except AttributeError:
-                return HTTPMethodNotAllowed(request=self.request)
+                return HTTPMethodNotAllowed(request=self.req)
             return handler()
         else:
-            return self.request.get_response(self.app)
-            # return HTTPMethodNotAllowed(request=self.request)
+            return self.req.get_response(self.app)
+            # return HTTPMethodNotAllowed(request=self.req)
 
     def _augment_empty_request(self):
         """
@@ -49,9 +49,9 @@ class ProxyHandler(BaseHandler):
         of the request in such cases that the user doesn't send the metadata
         file when he assign a function to an object.
         """
-        if 'Content-Length' not in self.request.headers:
-            self.request.headers['Content-Length'] = 0
-            self.request.body = ''
+        if 'Content-Length' not in self.req.headers:
+            self.req.headers['Content-Length'] = 0
+            self.req.body = ''
 
     def _verify_access(self, cont, obj):
         """
@@ -87,13 +87,13 @@ class ProxyHandler(BaseHandler):
                 if pseudo_folder not in obj_list:
                     path = os.path.join('/', self.api_version, self.account,
                                         self.container, pseudo_folder)
-                    new_env = dict(self.request.environ)
-                    auth_token = self.request.headers.get('X-Auth-Token')
-                    sub_req = make_subrequest(new_env, 'PUT', path,
-                                              headers={'X-Auth-Token': auth_token,
-                                                       'Content-Length': 0},
-                                              swift_source='function_middleware')
-                    response = sub_req.get_response(self.app)
+                    new_env = dict(self.req.environ)
+                    auth_token = self.req.headers.get('X-Auth-Token')
+                    sr = make_subrequest(new_env, 'PUT', path,
+                                         headers={'X-Auth-Token': auth_token,
+                                                  'Content-Length': 0},
+                                         swift_source='function_middleware')
+                    response = sr.get_response(self.app)
                     if response.is_success:
                         obj_list.append(pseudo_folder)
                     else:
@@ -101,16 +101,18 @@ class ProxyHandler(BaseHandler):
 
     def _get_object_list(self, path):
         """
-        Gets an object list of a specified path. The path may be '*', that means
-        it returns all objects inside the container or a pseudo-folder.
+        Gets an object list of a specified path. The path may be '*', which
+        means it will return all objects inside the container or a pseudo
+        folder.
         :param path: pseudo-folder path (ended with *), or '*'
         :return: list of objects
         """
         obj_list = list()
 
-        dest_path = os.path.join('/', self.api_version, self.account, self.container)
-        new_env = dict(self.request.environ)
-        auth_token = self.request.headers.get('X-Auth-Token')
+        dest_path = os.path.join('/', self.api_version, self.account,
+                                 self.container)
+        new_env = dict(self.req.environ)
+        auth_token = self.req.headers.get('X-Auth-Token')
 
         if path == '*':
             # All objects inside a container hierarchy
@@ -121,10 +123,10 @@ class ProxyHandler(BaseHandler):
             pseudo_folder = obj_split[0] + '/'
             new_env['QUERY_STRING'] = 'prefix='+pseudo_folder
 
-        sub_req = make_subrequest(new_env, 'GET', dest_path,
-                                  headers={'X-Auth-Token': auth_token},
-                                  swift_source='function_middleware')
-        response = sub_req.get_response(self.app)
+        sr = make_subrequest(new_env, 'GET', dest_path,
+                             headers={'X-Auth-Token': auth_token},
+                             swift_source='function_middleware')
+        response = sr.get_response(self.app)
         for obj in response.body.split('\n'):
             if obj != '':
                 obj_list.append(obj)
@@ -133,71 +135,11 @@ class ProxyHandler(BaseHandler):
 
         return obj_list
 
-    def _get_parent_vertigo_metadata(self):
-        """
-        Makes a HEAD to the parent pseudo-folder or container (7ms overhead)
-        in order to get the function assignated metadata.
-        :return: vertigo metadata dictionary
-        """
-        obj_split = self.obj.rsplit('/', 1)
-
-        if len(obj_split) > 1:
-            # object parent is pseudo-foldder
-            psudo_folder = obj_split[0] + '/'
-            f_key = 'X-Object-Sysmeta-Function-List'
-            dest_path = os.path.join('/', self.api_version, self.account,
-                                     self.container, psudo_folder)
-        else:
-            # object parent is container
-            f_key = 'X-Container-Sysmeta-Function-List'
-            dest_path = os.path.join('/', self.api_version, self.account,
-                                     self.container)
-
-        # We first try to get the function execution list from the memcache
-        function_metadata = self.memcache.get("function_"+dest_path)
-
-        if function_metadata:
-            for key in function_metadata.keys():
-                if key.replace('Container', 'Object').startswith('X-Object-Sysmeta-Function-'):
-                    if key == f_key:
-                        function = eval(function_metadata.pop(key))
-                        function_metadata[key.replace('Container', 'Object')] = function
-                    else:
-                        function_metadata[key.replace('Container', 'Object')] = function_metadata.pop(key)
-            return function_metadata
-
-        # If the function execution list is not in memcache, we get it from Swift
-        new_env = dict(self.request.environ)
-        auth_token = self.request.headers.get('X-Auth-Token')
-        sub_req = make_subrequest(new_env, 'HEAD', dest_path,
-                                  headers={'X-Auth-Token': auth_token},
-                                  swift_source='function_middleware')
-        response = sub_req.get_response(self.app)
-
-        function_metadata = dict()
-        if response.is_success:
-            for key in response.headers:
-                if key.replace('Container', 'Object').startswith('X-Object-Sysmeta-Function-'):
-                    # if key.replace('Container', 'Object').startswith('X-Object-Sysmeta-Function-Onput'):
-                    #    continue
-                    if key == f_key:
-                        function = eval(response.headers[key])
-                        function_metadata[key.replace('Container', 'Object')] = function
-                    else:
-                        function_metadata[key.replace('Container', 'Object')] = response.headers[key]
-
-        if function_metadata:
-            self.memcache.set("function_"+dest_path, function_metadata)
-        else:
-            vertigo_metadata = None
-
-        return vertigo_metadata
-
     def _set_function(self):
         """
         Process both function assignation over an object or a group of objects
         """
-        self.request.method = 'PUT'
+        self.req.method = 'PUT'
         obj_list = list()
         _, function = self.get_function_assignation_data()
         self._verify_access(self.function_container, function)
@@ -207,7 +149,7 @@ class ProxyHandler(BaseHandler):
         else:
             obj_list.append(self.obj)
 
-        specific_md = self.request.body
+        specific_md = self.req.body
 
         if self.obj == '*':
             # Save function information into container metadata
@@ -215,13 +157,14 @@ class ProxyHandler(BaseHandler):
             set_function_container(self, trigger, function)
 
         for obj in obj_list:
-            self.request.body = specific_md
+            self.req.body = specific_md
             response = self._verify_access(self.container, obj)
-            new_path = os.path.join('/', self.api_version, self.account, self.container, obj)
-            self.request.environ['PATH_INFO'] = new_path
+            new_path = os.path.join('/', self.api_version, self.account,
+                                    self.container, obj)
+            self.req.environ['PATH_INFO'] = new_path
             self._augment_empty_request()
 
-            response = self.request.get_response(self.app)
+            response = self.req.get_response(self.app)
             if not response.is_success():
                 # TODO: send back an error message
                 break
@@ -230,10 +173,10 @@ class ProxyHandler(BaseHandler):
 
     def _unset_function(self):
         """
-        Unset a specified function from the trigger of an object or a group of
-        objects.
+        Unset a specified function from the trigger of an object or a group
+        of objects.
         """
-        self.request.method = 'PUT'
+        self.req.method = 'PUT'
         obj_list = list()
 
         if '*' in self.obj:
@@ -248,16 +191,67 @@ class ProxyHandler(BaseHandler):
 
         for obj in obj_list:
             response = self._verify_access(self.container, obj)
-            new_path = os.path.join('/', self.api_version, self.account, self.container, obj)
-            self.request.environ['PATH_INFO'] = new_path
+            new_path = os.path.join('/', self.api_version, self.account,
+                                    self.container, obj)
+            self.req.environ['PATH_INFO'] = new_path
             self._augment_empty_request()
 
-            response = self.request.get_response(self.app)
+            response = self.req.get_response(self.app)
             if not response.is_success():
                 # TODO: send back an error message
                 break
 
         return response
+
+    def _get_parent_container_metadata(self):
+        """
+        Makes a HEAD to the parent pseudo-folder or container
+        in order to get the function list to execute.
+        :return: metadata dictionary
+        """
+        obj_split = self.obj.rsplit('/', 1)
+
+        if len(obj_split) > 1:
+            # object parent is pseudo-foldder
+            psudo_folder = obj_split[0] + '/'
+            dest_path = os.path.join('/', self.api_version, self.account,
+                                     self.container, psudo_folder)
+        else:
+            # object parent is container
+            dest_path = os.path.join('/', self.api_version, self.account,
+                                     self.container)
+
+        # We first try to get the function execution list from Memcache
+        function_metadata = self.memcache.get("function_md"+dest_path)
+        if function_metadata:
+            return function_metadata
+
+        # If the function execution list is not in Memcache, it gets it
+        # from Swift
+        new_env = dict(self.req.environ)
+        auth_token = self.req.headers.get('X-Auth-Token')
+        sub_req = make_subrequest(new_env, 'HEAD', dest_path,
+                                  headers={'X-Auth-Token': auth_token},
+                                  swift_source='function_middleware')
+        response = sub_req.get_response(self.app)
+
+        function_metadata = dict()
+        if response.is_success:
+            for key in response.headers:
+                if 'Sysmeta-Function' in key:
+                    k = key.replace('Container', 'Object')
+                    if 'Function-List' in k:
+                        function = eval(response.headers[key])
+                        function_metadata[k] = function
+                    else:
+                        function_metadata[k] = response.headers[key]
+
+        if function_metadata:
+            self.memcache.set("function_md"+dest_path, function_metadata)
+        else:
+            function_metadata = None
+
+        return function_metadata
 
     def _handle_request_trough_middlebox(self, response):
         node = 'compute1'
@@ -265,8 +259,8 @@ class ProxyHandler(BaseHandler):
         url = os.path.join('http://', node+':'+port, self.api_version, self.account)
         parsed, conn = http_connection(url)
         path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
-        self.request.headers['Middlebox'] = response.headers.pop('Middlebox')
-        conn.request(self.method, path, '', self.request.headers)
+        self.req.headers['Middlebox'] = response.headers.pop('Middlebox')
+        conn.request(self.method, path, '', self.req.headers)
         resp = conn.getresponse()
         resp_headers = {}
         for header, value in resp.getheaders():
@@ -280,21 +274,23 @@ class ProxyHandler(BaseHandler):
         self.logger.info('I am the Middlebox')
         response_timeout = 5
         path = '/%s/%s/%s' % (self.account, self.container, self.obj)
-        data = eval(self.request.headers['Middlebox'])
-        self.request.headers['X-Backend-Storage-Policy-Index'] = data['policy']
+        data = eval(self.req.headers['Middlebox'])
+        self.req.headers['X-Backend-Storage-Policy-Index'] = data['policy']
         storage_node = data['storage_node']
         storage_port = data['storage_port']
         device = data['device']
         part = data['part']
         with Timeout(response_timeout):
             conn = http_connect(storage_node, storage_port, device, part,
-                                'GET', path, headers=gen_headers(self.request.headers))
+                                'GET', path, headers=gen_headers(self.req.headers))
         with Timeout(response_timeout):
             resp = conn.getresponse()
         resp_headers = {}
         for header, value in resp.getheaders():
             resp_headers[header] = value.replace('"', '')
-        response = Response(app_iter=DataIter(resp, 10), headers=resp_headers, request=self.request)
+        response = Response(app_iter=DataIter(resp, 10),
+                            headers=resp_headers,
+                            request=self.req)
 
         return response
 
@@ -307,14 +303,14 @@ class ProxyHandler(BaseHandler):
             # I am a middlewbox
             response = self._get_response_from_middlebox()
         else:
-            response = self.request.get_response(self.app)
-        # self.request = self.apply_function_on_pre_get()
+            response = self.req.get_response(self.app)
+        # self.req = self.apply_function_on_pre_get()
 
         response = self.apply_function_on_post_get(response)
 
         if 'Middlebox' in response.headers:
-            # The Object Storage node does not have enough resources, we need
-            # to get the object through the Middlebox.
+            # The Object Storage node does not have enough resources, it will
+            # get the object through the Middlebox.
             response = self._handle_request_trough_middlebox(response)
 
         if 'Content-Length' not in response.headers and \
@@ -333,9 +329,9 @@ class ProxyHandler(BaseHandler):
         elif self.is_function_unset:
             response = self._unset_function()
         else:
-            # Normal PUT. Onput Functions are applied here, if any.
-            function_metadata = self._get_parent_vertigo_metadata()
-            self.request.headers.update(function_metadata)
+            # Normal PUT. Onput Functions are applied here
+            function_metadata = self._get_parent_container_metadata()
+            self.req.headers.update(function_metadata)
             f_list = get_function_list_object(function_metadata, self.method)
             if f_list:
                 self.logger.info('There are functions' +
@@ -344,7 +340,7 @@ class ProxyHandler(BaseHandler):
                 f_data = self.docker_gateway.execute_function(f_list)
                 response = self._process_function_data_req(f_data)
             else:
-                response = self.request.get_response(self.app)
+                response = self.req.get_response(self.app)
 
         return response
 
@@ -358,7 +354,7 @@ class ProxyHandler(BaseHandler):
         elif self.is_function_unset:
             response = self._unset_function()
         else:
-            response = self.request.get_response(self.app)
+            response = self.req.get_response(self.app)
 
         return response
 
@@ -367,18 +363,12 @@ class ProxyHandler(BaseHandler):
         """
         HEAD handler on Proxy
         """
-        response = self.request.get_response(self.app)
+        response = self.req.get_response(self.app)
         if self.conf['metadata_visibility']:
             for key in response.headers.keys():
-                if key.replace('Container', 'Object').startswith('X-Object-Sysmeta-Function-'):
-                    new_key = key.replace('Container', 'Object').replace('X-Object-Sysmeta-', '')
+                k = key.replace('Container', 'Object')
+                if 'Sysmeta-Function' in k:
+                    new_key = k.replace('X-Object-Sysmeta-', '')
                     response.headers[new_key] = response.headers[key]
-
-            if 'Function' in response.headers:
-                function_dict = eval(response.headers['Function'])
-                for trigger in function_dict.keys():
-                    if not function_dict[trigger]:
-                        del function_dict[trigger]
-                response.headers['Function'] = function_dict
 
         return response
