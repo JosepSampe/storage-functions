@@ -165,7 +165,7 @@ class ProxyHandler(BaseHandler):
             self._augment_empty_request()
 
             response = self.req.get_response(self.app)
-            if not response.is_success():
+            if not response.is_success:
                 # TODO: send back an error message
                 break
 
@@ -197,7 +197,7 @@ class ProxyHandler(BaseHandler):
             self._augment_empty_request()
 
             response = self.req.get_response(self.app)
-            if not response.is_success():
+            if not response.is_success:
                 # TODO: send back an error message
                 break
 

@@ -45,7 +45,7 @@ class ObjectHandler(BaseHandler):
         """
         GET handler on Object
         """
-        available_compute_resources = False
+        available_compute_resources = True
 
         if not self.is_middlebox_request and not available_compute_resources:
             response = self._generate_middlebox_response()

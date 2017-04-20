@@ -108,8 +108,8 @@ def get_object_metadata(data_file):
 
 
 def get_container_metadata(ctx, container):
-    new_env = dict(ctx.request.environ)
-    auth_token = ctx.request.headers.get('X-Auth-Token')
+    new_env = dict(ctx.req.environ)
+    auth_token = ctx.req.headers.get('X-Auth-Token')
     sub_req = make_subrequest(new_env, 'HEAD', container,
                               headers={'X-Auth-Token': auth_token},
                               swift_source='function_middleware')
@@ -134,15 +134,15 @@ def set_container_metadata(ctx, metadata):
 
     :param metadata: metadata dictionary
     """
-    memcache = cache_from_env(ctx.request.environ)
+    memcache = cache_from_env(ctx.req.environ)
     dest_path = os.path.join('/', ctx.api_version, ctx.account, ctx.container)
     for key in metadata.keys():
         if not key.startswith(SYSMETA_CONTAINER_HEADER):
             del metadata[key]
     # We store the Function metadata in the memcached server (only 10 minutes)
     memcache.set("function_"+dest_path, metadata, time=600)
-    new_env = dict(ctx.request.environ)
-    auth_token = ctx.request.headers.get('X-Auth-Token')
+    new_env = dict(ctx.req.environ)
+    auth_token = ctx.req.headers.get('X-Auth-Token')
     metadata.update({'X-Auth-Token': auth_token})
     sub_req = make_subrequest(new_env, 'POST', dest_path,
                               headers=metadata,
@@ -177,7 +177,7 @@ def verify_access(ctx, path):
     """
     ctx.logger.debug('Verifying access to %s' % path)
 
-    new_env = dict(ctx.request.environ)
+    new_env = dict(ctx.req.environ)
     if 'HTTP_TRANSFER_ENCODING' in new_env.keys():
         del new_env['HTTP_TRANSFER_ENCODING']
 
@@ -186,7 +186,7 @@ def verify_access(ctx, path):
         if env_key in new_env.keys():
             del new_env[env_key]
 
-    auth_token = ctx.request.headers.get('X-Auth-Token')
+    auth_token = ctx.req.headers.get('X-Auth-Token')
     sub_req = make_subrequest(
         new_env, 'HEAD', path,
         headers={'X-Auth-Token': auth_token},
@@ -204,7 +204,7 @@ def get_data_dir(ctx):
     """
     devices = ctx.conf.get('devices')
     device, partition, account, container, obj, policy = \
-        get_name_and_placement(ctx.request, 5, 5, True)
+        get_name_and_placement(ctx.req, 5, 5, True)
     name_hash = hash_path(account, container, obj)
     device_path = os.path.join(devices, device)
     storage_dir = storage_directory(df_data_dir(policy), partition, name_hash)
@@ -276,7 +276,7 @@ def set_function_container(ctx, trigger, function):
         function_dict[trigger].append(function)
 
     # 2nd: Get function specific metadata
-    specific_md = ctx.request.body.rstrip()
+    specific_md = ctx.req.body.rstrip()
 
     # 3rd: Assign all metadata to the container
     try:
@@ -381,7 +381,7 @@ def set_function_object(ctx, trigger, function):
             del function_dict[tger]
 
     # 2nd: Set function specific metadata
-    specific_md = ctx.request.body.rstrip()
+    specific_md = ctx.req.body.rstrip()
 
     # 3rd: Assign all metadata to the object
     try:

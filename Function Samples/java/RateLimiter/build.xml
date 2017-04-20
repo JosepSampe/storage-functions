@@ -1,0 +1,27 @@
+<project>
+	
+	<target name="clean">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+	</target>
+
+	<target name="compile">
+		<javac srcdir="src/com/urv/blackeagle/function/ratelimiter/" destdir="bin" includeantruntime="false">
+			<classpath>
+		        <pathelement 
+		        	path="lib/blackeagle-runtime-1.0.jar"/>
+				<pathelement 
+					path="lib/json-simple-1.1.1.jar"/>
+				<pathelement 
+					path="lib/guava-21.0.jar"/>
+			</classpath>		
+		</javac>
+	    <jar destfile="bin/ratelimiter-1.0.jar" 
+	        basedir="bin"
+	     	includes="com/urv/blackeagle/function/ratelimiter/*">
+	    </jar>
+	</target>
+	
+	<target name="build" depends="clean, compile"/>
+
+</project>
