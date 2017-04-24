@@ -329,7 +329,6 @@ class ProxyHandler(BaseHandler):
         elif self.is_function_unset:
             response = self._unset_function()
         else:
-            # Normal PUT. Onput Functions are applied here
             function_metadata = self._get_parent_container_metadata()
             self.req.headers.update(function_metadata)
             f_list = get_function_list_object(function_metadata, self.method)

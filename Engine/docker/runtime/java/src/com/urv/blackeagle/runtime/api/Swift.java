@@ -171,13 +171,29 @@ public class Swift {
 
 	public void setFunction(String source, String mc, String method, String metadata){
 		HttpURLConnection conn = newConnection(source);
-		conn.setRequestProperty("X-Vertigo-on"+method, mc);
+		conn.setRequestProperty("X-Function-on"+method, mc);
 		try {
 			conn.setRequestMethod("POST");
 		} catch (ProtocolException e) {
 			logger_.trace("Error: Bad Protocol");
 		}
 		sendFunctionMetadata(conn, metadata);
+	}	
+	
+	private int sendFunctionMetadata(HttpURLConnection conn, String metadata){
+		OutputStream os;
+		int status = 404;
+		try {
+			conn.connect();
+			os = conn.getOutputStream();
+			os.write(metadata.getBytes());
+			os.close();
+			status = conn.getResponseCode();
+		} catch (IOException e) {
+			logger_.trace("Error setting function metadata");
+		}
+		conn.disconnect();	
+		return status;
 	}
 	
 	public void copy(String source, String dest){
@@ -199,7 +215,7 @@ public class Swift {
 		if (!source.equals(dest)){
 			HttpURLConnection conn = newConnection(source);
 			conn.setFixedLengthStreamingMode(0);
-			conn.setRequestProperty("X-Vertigo-Link-To", dest);
+			conn.setRequestProperty("X-Link-To", dest);
 			try {
 				conn.setRequestMethod("PUT");
 			} catch (ProtocolException e) {
@@ -237,7 +253,39 @@ public class Swift {
 		}
 		sendRequest(conn);
 	}
+	
+	public BufferedReader get(String source){
+		HttpURLConnection conn = newConnection(source);
+
+		return getObject(conn);
+	}
+	
+	public BufferedReader get(String source, Map<String, String> headers){
+		HttpURLConnection conn = newConnection(source);
 		
+		for (Map.Entry<String, String> entry : headers.entrySet()){
+			conn.setRequestProperty(entry.getKey(), entry.getValue());
+		}
+		
+		return getObject(conn);
+	}
+	
+	private BufferedReader getObject(HttpURLConnection conn){
+		BufferedReader reader = null;
+		conn.setDoOutput(false);
+		conn.setDoInput(true);
+		
+		try {
+			conn.setRequestMethod("GET");
+			reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+		} catch (ProtocolException pe) {
+			logger_.trace("Error: Bad Protocol");
+		} catch (IOException ioe) {
+			logger_.trace("Error: Can't get Input Stream");
+		}
+		return reader;	
+	}
+
 	private HttpURLConnection newConnection(String source){
 		String storageUri = storageUrl+source;
 		URL url = null;
@@ -247,29 +295,13 @@ public class Swift {
 			conn = (HttpURLConnection) url.openConnection();
 			conn.setDoOutput(true);
 			conn.setRequestProperty("X-Auth-Token", token);
-			conn.setRequestProperty("User-Agent", "function");
+			conn.setRequestProperty("User-Agent", "function_java_runtime");
 		} catch (MalformedURLException e) {
 			logger_.trace("Error: Malformated URL");
 		} catch (IOException e) {
 			logger_.trace("Error opeing connection");
 		}
 		return conn;	
-	}
-	
-	private int sendFunctionMetadata(HttpURLConnection conn, String metadata){
-		OutputStream os;
-		int status = 404;
-		try {
-			conn.connect();
-			os = conn.getOutputStream();
-			os.write(metadata.getBytes());
-			os.close();
-			status = conn.getResponseCode();
-		} catch (IOException e) {
-			logger_.trace("Error setting function metadata");
-		}
-		conn.disconnect();	
-		return status;
 	}
 	
 	private int sendRequest(HttpURLConnection conn){
