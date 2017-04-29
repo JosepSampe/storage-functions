@@ -58,24 +58,24 @@ public class Handler implements IFunction {
 	 */
 	public void invoke(Context ctx, Api api) {
 		
-		ctx.logger.emitLog("Init CBAC Function");
+		ctx.log.emit("Init CBAC Function");
 		
 		String requetRoles = ctx.request.headers.get("X-Roles");
 		String role = ctx.function.metadata.get("role").toString();
 		String allowed_cols = ctx.function.metadata.get("allowed_cols").toString();
 		
-		ctx.logger.emitLog("User roles: "+requetRoles);
-		ctx.logger.emitLog("Role: "+role+", Allowed columns: "+allowed_cols); 
+		ctx.log.emit("User roles: "+requetRoles);
+		ctx.log.emit("Role: "+role+", Allowed columns: "+allowed_cols); 
 		
 		if (requetRoles.toLowerCase().contains(role)){
-			ctx.logger.emitLog("--> Allowed request");
+			ctx.log.emit("--> Allowed request");
 			filterData(ctx, allowed_cols);
 		} else {
-			ctx.logger.emitLog("--> Unallowed request");
+			ctx.log.emit("--> Unallowed request");
 			ctx.request.cancel("ERROR: User not allowed");	
 		}
 
-		ctx.logger.emitLog("Ended CBAC Function");
+		ctx.log.emit("Ended CBAC Function");
 		
 	}
 

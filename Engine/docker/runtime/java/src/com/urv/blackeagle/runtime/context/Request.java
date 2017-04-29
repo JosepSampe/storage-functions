@@ -32,8 +32,8 @@ public class Request {
 	
 	@SuppressWarnings("unchecked")
 	public void forward(){
+		logger_.trace("Sending command: CONTINUE");
 		outMetadata.put("command","CONTINUE");
-		
 		if (object.metadata.isModified())
 			outMetadata.put("object_metadata", object.metadata.getAll());
 		if (response.headers.isModified())
@@ -46,13 +46,15 @@ public class Request {
 	
 	@SuppressWarnings("unchecked")
 	public void cancel(String message){	
+		logger_.trace("Sending command: CANCEL");
 		outMetadata.put("command", "CANCEL");
 		outMetadata.put("message", message);
 		this.execute();
 	}
 	
 	@SuppressWarnings("unchecked")
-	public void rewire(String object_id){	
+	public void rewire(String object_id){
+		logger_.trace("Sending command: REWIRE");
 		outMetadata.put("command", "REWIRE");
 		outMetadata.put("object_id", object_id);
 		this.execute();

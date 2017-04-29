@@ -12,7 +12,7 @@ public class Handler implements IFunction {
 	 * Function entry method. 
 	 */
 	public void invoke(Context ctx, Api api) {
-		ctx.logger.emitLog("Init Access Ratio Calculator Function");
+		ctx.log.emit("Init Access Ratio Calculator Function");
 
 		ctx.request.forward(); // Return request to the user; the rest of code will be executed asynchronously
 		
@@ -46,7 +46,7 @@ public class Handler implements IFunction {
 		if (ratio > 1)
 			ctx.object.move("data_2/new_file.sh");
 		
-		ctx.logger.emitLog("Current Ratio: "+Double.toString(ratio));
-		ctx.logger.emitLog("Ended Access Ratio Calculator Function");
+		ctx.log.emit("Current Ratio: "+Double.toString(ratio));
+		ctx.log.emit("Ended Access Ratio Calculator Function");
 	}
 }

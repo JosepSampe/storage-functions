@@ -12,7 +12,7 @@ public class Handler implements IFunction {
 	 * Function entry method. 
 	 */
 	public void invoke(Context ctx, Api api) {
-		ctx.logger.emitLog("Init Prefetching Function");
+		ctx.log.emit("Init Prefetching Function");
 
 		String resources = ctx.object.metadata.get("Resources");
 		String container = ctx.request.headers.get("X-Container");
@@ -24,7 +24,7 @@ public class Handler implements IFunction {
 			
 			for (String resource : staticResources){
 				link = link + "<"+currentLocation+"/"+resource+">;rel=preload,";
-				ctx.logger.emitLog("<"+currentLocation+"/"+resource+">;rel=preload;");
+				ctx.log.emit("<"+currentLocation+"/"+resource+">;rel=preload;");
 				
 			}
 			ctx.response.headers.set("Link", link);
@@ -36,6 +36,6 @@ public class Handler implements IFunction {
 			}*/
 		}
 
-		ctx.logger.emitLog("Ended Prefetching Function");
+		ctx.log.emit("Ended Prefetching Function");
 	}
 }

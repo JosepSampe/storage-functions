@@ -6,7 +6,7 @@
 	</target>
 
 	<target name="compile">
-		<javac srcdir="src/com/urv/blackeagle/function/ratio/" destdir="bin" includeantruntime="false">
+		<javac srcdir="src/com/urv/blackeagle/function/reducer/" destdir="bin" includeantruntime="false">
 			<classpath>
 		        <pathelement 
 		        	path="../blackeagle-runtime-1.0.jar"/>
@@ -14,12 +14,12 @@
 					path="lib/json-simple-1.1.1.jar"/>
 			</classpath>		
 		</javac>
-		<jar destfile="bin/ratio-1.0.jar" 
-			basedir="bin"
-			includes="com/urv/blackeagle/function/ratio/*">
-		</jar>
+	    <jar destfile="bin/reducer-1.0.jar" 
+	        basedir="bin"
+	     	includes="com/urv/blackeagle/function/reducer/*">
+	    </jar>
 	</target>
 	
 	<target name="build" depends="clean, compile"/>
-	
+
 </project>

@@ -48,13 +48,13 @@ class ObjectHandler(BaseHandler):
         available_compute_resources = True
 
         if not self.is_middlebox_request and not available_compute_resources:
-            response = self._generate_middlebox_response()
+            resp = self._generate_middlebox_response()
         else:
-            response = self.req.get_response(self.app)
-            if not self.is_middlebox_request:
-                response = self.apply_function_on_post_get(response)
+            resp = self.req.get_response(self.app)
+            if not self.is_middlebox_request and not self.is_slo_object(resp):
+                resp = self.apply_function_on_post_get(resp)
 
-        return response
+        return resp
 
     @public
     def PUT(self):
@@ -62,7 +62,7 @@ class ObjectHandler(BaseHandler):
         PUT handler on Object
         """
         if self.is_function_set:
-            trigger, function = self.get_function_assignation_data()
+            trigger, function = self.get_function_set_data()
 
             try:
                 set_function_object(self, trigger, function)
@@ -76,7 +76,7 @@ class ObjectHandler(BaseHandler):
                                 request=self.req)
 
         elif self.is_function_unset:
-            trigger, function = self.get_function_deletion_data()
+            trigger, function = self.get_function_unset_data()
 
             try:
                 unset_function_object(self, trigger, function)

@@ -11,7 +11,7 @@ import java.util.Map;
 public class Context {
 	
 	private Logger logger_;	
-	public Loggr logger;
+	public Log log;
 	public Response response;
 	public Request request;
 	public Object object;
@@ -26,7 +26,7 @@ public class Context {
 		String method = reqMd.get("X-Method");
 		
 		logger_ = localLog;
-		logger = new Loggr(logFd, logger_);
+		log = new Log(logFd, logger_);
 		storlet = new Storlet(commandFd, logger_);
 		function = new Function(objectMd, functionName, currentObject, method, swift, logger_);
 		response = new Response(logger_);

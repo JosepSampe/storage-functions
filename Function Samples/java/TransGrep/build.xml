@@ -9,7 +9,7 @@
 		<javac srcdir="src/com/urv/blackeagle/function/transgrep/" destdir="bin" includeantruntime="false">
 			<classpath>
 		        <pathelement 
-		        	path="lib/blackeagle-runtime-1.0.jar"/>
+		        	path="../blackeagle-runtime-1.0.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="bin/transgrep-1.0.jar" 

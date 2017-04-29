@@ -55,13 +55,15 @@ class BaseHandler(object):
                                     conf.get('function_dependency'),
                                     conf.get('storlet_container'),
                                     conf.get('storlet_dependency')]
-        self.available_assignation_headers = ['X-Function-Onget',
-                                              'X-Function-Ondelete',
-                                              'X-Function-Onput']
-        self.available_deletion_headers = ['X-Function-Onget-Delete',
-                                           'X-Function-Ondelete-Delete',
-                                           'X-Function-Onput-Delete',
-                                           'X-Function-Delete']
+        self.available_set_headers = ['X-Function-Onget',
+                                      'X-Function-Onget-Manifest',
+                                      'X-Function-Ondelete',
+                                      'X-Function-Onput']
+        self.available_unset_headers = ['X-Function-Onget-Delete',
+                                        'X-Function-Onget-Manifest-Delete',
+                                        'X-Function-Ondelete-Delete',
+                                        'X-Function-Onput-Delete',
+                                        'X-Function-Delete']
 
     def _setup_docker_gateway(self, response=None):
         self.req.headers['X-Current-Server'] = self.execution_server
@@ -90,25 +92,29 @@ class BaseHandler(object):
         self._api_version, self._account, self._container, self._obj = \
             self._parse_vaco()
 
-    def get_function_assignation_data(self):
-        header = [i for i in self.available_assignation_headers
+    def get_function_set_data(self):
+        header = [i for i in self.available_set_headers
                   if i in self.req.headers.keys()]
         if len(header) > 1:
             raise HTTPUnauthorized('The system can only set 1 '
                                    'function at a time.\n')
-        mc = self.req.headers[header[0]]
 
-        return header[0].rsplit('-', 1)[1].lower(), mc
+        trigger = header[0].lower().replace('-manifest', '').rsplit('-', 1)[1]
+        function = self.req.headers[header[0]]
 
-    def get_function_deletion_data(self):
-        header = [i for i in self.available_deletion_headers
+        return trigger, function
+
+    def get_function_unset_data(self):
+        header = [i for i in self.available_unset_headers
                   if i in self.req.headers.keys()]
         if len(header) > 1:
             raise HTTPUnauthorized('The system can only unset 1 '
                                    'function at a time.\n')
-        mc = self.req.headers[header[0]]
 
-        return header[0].rsplit('-', 2)[1].lower(), mc
+        trigger = header[0].lower().replace('-manifest', '').rsplit('-', 2)[1]
+        function = self.req.headers[header[0]]
+
+        return trigger, function
 
     @property
     def api_version(self):
@@ -181,6 +187,16 @@ class BaseHandler(object):
         return (self.container in self.function_containers and self.obj and
                 self.req.method == 'PUT')
 
+    def is_slo_object(self, resp):
+        """ Determines whether the requested object is an SLO object """
+        return 'X-Static-Large-Object' in resp.headers and \
+            resp.headers['X-Static-Large-Object'] == 'True'
+
+    @property
+    def is_function_for_manifest(self):
+        return 'X-Function-Onget-Manifest' in self.req.headers \
+            or 'X-Function-Onget-Manifest-Delete' in self.req.headers
+
     @property
     def is_slo_get_request(self):
         """
@@ -219,12 +235,12 @@ class BaseHandler(object):
 
     @property
     def is_function_set(self):
-        return any((True for x in self.available_assignation_headers
+        return any((True for x in self.available_set_headers
                     if x in self.req.headers.keys()))
 
     @property
     def is_function_unset(self):
-        return any((True for x in self.available_deletion_headers
+        return any((True for x in self.available_unset_headers
                     if x in self.req.headers.keys()))
 
     @property

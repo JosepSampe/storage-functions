@@ -4,12 +4,16 @@ from blackeagle.common.utils import set_function_container
 from blackeagle.common.utils import unset_function_from_container
 from blackeagle.common.utils import DataIter
 from blackeagle.common.utils import get_function_list_object
+from blackeagle.common.utils import generate_function_dict
 
-from swift.common.swob import HTTPMethodNotAllowed, HTTPNotFound
-from swift.common.swob import HTTPUnauthorized, Response
-from swift.common.utils import public, cache_from_env
+from swift.common.swob import HTTPMethodNotAllowed, HTTPNotFound, \
+    HTTPUnauthorized, Response
+from swift.common.utils import public, cache_from_env, close_if_possible, \
+    is_success, closing_if_possible
 from swift.common.wsgi import make_subrequest
+from swift.common.exceptions import ListingIterError
 import os
+import json
 
 from eventlet import Timeout
 from swiftclient.client import http_connection, quote
@@ -135,13 +139,55 @@ class ProxyHandler(BaseHandler):
 
         return obj_list
 
+    def _propagate_to_slo_object_chunks(self, path):
+        """
+        Fetch the submanifest, parse it, and sets or unsets the function to
+        all the chunks which compose the whole object.
+        """
+        dest_path = os.path.join('/', self.api_version, path)
+        auth_token = self.req.headers.get('X-Auth-Token')
+
+        sub_req = make_subrequest(self.req.environ, 'GET',
+                                  dest_path+'?multipart-manifest=get',
+                                  headers={'X-Auth-Token': auth_token},
+                                  swift_source='function_middleware')
+
+        sub_resp = sub_req.get_response(self.app)
+
+        if not is_success(sub_resp.status_int):
+            close_if_possible(sub_resp.app_iter)
+            raise ListingIterError(
+                'ERROR: while fetching %s, GET of submanifest %s '
+                'failed with status %d' % (self.req.path, sub_req.path,
+                                           sub_resp.status_int))
+
+        try:
+            with closing_if_possible(sub_resp.app_iter):
+                manifest = json.loads(''.join(sub_resp.app_iter))
+        except ValueError as err:
+            raise ListingIterError(
+                'ERROR: while fetching %s, JSON-decoding of submanifest %s '
+                'failed with %s' % (self.req.path, sub_req.path, err))
+
+        for segment in manifest:
+            dest_path = os.path.join('/', self.api_version,
+                                     self.account+segment['name'])
+            self.req.environ['PATH_INFO'] = dest_path
+            self._augment_empty_request()
+            resp = self.req.get_response(self.app)
+
+            if not is_success(resp.status_int):
+                break
+
+        return resp
+
     def _set_function(self):
         """
         Process both function assignation over an object or a group of objects
         """
         self.req.method = 'PUT'
         obj_list = list()
-        _, function = self.get_function_assignation_data()
+        trigger, function = self.get_function_set_data()
         self._verify_access(self.function_container, function)
 
         if '*' in self.obj:
@@ -153,14 +199,31 @@ class ProxyHandler(BaseHandler):
 
         if self.obj == '*':
             # Save function information into container metadata
-            trigger, function = self.get_function_assignation_data()
             set_function_container(self, trigger, function)
 
         for obj in obj_list:
             self.req.body = specific_md
             response = self._verify_access(self.container, obj)
-            new_path = os.path.join('/', self.api_version, self.account,
-                                    self.container, obj)
+
+            path = os.path.join(self.account, self.container, obj)
+
+            if self.is_slo_object(response):
+                if self.is_function_for_manifest:
+                    # The user has specified that the function is for
+                    # the SLO object manifest.
+                    function_dict = self.memcache.get("function_md_"+path)
+                    function_dict = generate_function_dict(function_dict,
+                                                           trigger, function)
+                    self.memcache.set("function_md_"+path, function_dict)
+                    function = self.req.headers.pop('X-Function-Onget-Manifest')
+                    self.req.headers['X-Function-Onget'] = function
+                else:
+                    # The function has for the SLO object chunks (parts)
+                    # included in the manifest.
+                    response = self._propagate_to_slo_object_chunks(path)
+                    continue
+
+            new_path = os.path.join('/', self.api_version, path)
             self.req.environ['PATH_INFO'] = new_path
             self._augment_empty_request()
 
@@ -186,11 +249,22 @@ class ProxyHandler(BaseHandler):
 
         if self.obj == '*':
             # Deletes the assignation information from the container
-            trigger, function = self.get_function_deletion_data()
+            trigger, function = self.get_function_unset_data()
             unset_function_from_container(self, trigger, function)
 
         for obj in obj_list:
             response = self._verify_access(self.container, obj)
+            path = os.path.join(self.account, self.container, obj)
+            if self.is_slo_object(response):
+                if self.is_function_for_manifest:
+                    # TODO: Get dictionary and delete function from the dictionary
+                    self.memcache.delete("function_md_"+path)
+                    function = self.req.headers.pop('X-Function-Onget-Manifest-Delete')
+                    self.req.headers['X-Function-Onget-Delete'] = function
+                else:
+                    response = self._propagate_to_slo_object_chunks(path)
+                    continue
+
             new_path = os.path.join('/', self.api_version, self.account,
                                     self.container, obj)
             self.req.environ['PATH_INFO'] = new_path
@@ -214,15 +288,13 @@ class ProxyHandler(BaseHandler):
         if len(obj_split) > 1:
             # object parent is pseudo-foldder
             psudo_folder = obj_split[0] + '/'
-            dest_path = os.path.join('/', self.api_version, self.account,
-                                     self.container, psudo_folder)
+            path = os.path.join(self.account, self.container, psudo_folder)
         else:
             # object parent is container
-            dest_path = os.path.join('/', self.api_version, self.account,
-                                     self.container)
+            path = os.path.join(self.account, self.container)
 
         # We first try to get the function execution list from Memcache
-        function_metadata = self.memcache.get("function_md"+dest_path)
+        function_metadata = self.memcache.get("function_md_"+path)
         if function_metadata:
             return function_metadata
 
@@ -230,7 +302,8 @@ class ProxyHandler(BaseHandler):
         # from Swift
         new_env = dict(self.req.environ)
         auth_token = self.req.headers.get('X-Auth-Token')
-        sub_req = make_subrequest(new_env, 'HEAD', dest_path,
+        sub_req = make_subrequest(new_env, 'HEAD',
+                                  '/'+self.api_version+'/'+path,
                                   headers={'X-Auth-Token': auth_token},
                                   swift_source='function_middleware')
         response = sub_req.get_response(self.app)
@@ -247,7 +320,7 @@ class ProxyHandler(BaseHandler):
                         function_metadata[k] = response.headers[key]
 
         if function_metadata:
-            self.memcache.set("function_md"+dest_path, function_metadata)
+            self.memcache.set("function_md_"+path, function_metadata)
         else:
             function_metadata = None
 
@@ -303,6 +376,11 @@ class ProxyHandler(BaseHandler):
             # I am a middlewbox
             response = self._get_response_from_middlebox()
         else:
+            path = os.path.join(self.account, self.container, self.obj)
+            function_metadata = self.memcache.get("function_md_"+path)
+            if function_metadata:
+                path = self.req.path
+                self.req.environ['QUERY_STRING'] = 'multipart-manifest=get'
             response = self.req.get_response(self.app)
         # self.req = self.apply_function_on_pre_get()
 
@@ -363,6 +441,7 @@ class ProxyHandler(BaseHandler):
         HEAD handler on Proxy
         """
         response = self.req.get_response(self.app)
+
         if self.conf['metadata_visibility']:
             for key in response.headers.keys():
                 k = key.replace('Container', 'Object')

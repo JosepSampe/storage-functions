@@ -32,24 +32,9 @@
 	</target>
 	
 	<target name="copy">
-        <copy todir="../../../../Function Samples/java/ContentBasedAccessControl/lib/">
+        <copy todir="../../../../Function Samples/java/">
            <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
         </copy>
-        <copy todir="../../../../Function Samples/java/Limiter/lib/">
-           <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
-        </copy>
-        <copy todir="../../../../Function Samples/java/NoopDataIterator/lib/">
-           <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
-        </copy>
-        <copy todir="../../../../Function Samples/java/Prefetching/lib/">
-           <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
-        </copy>
-        <copy todir="../../../../Function Samples/java/Ratio/lib/">
-           <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
-        </copy>
-        <copy todir="../../../../Function Samples/java/TransGrep/lib/">
-           <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
-        	</copy>
 	</target>
 	
 	<target name="build" depends="clean, compile, copy"/>

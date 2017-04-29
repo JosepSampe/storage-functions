@@ -248,6 +248,18 @@ def close_data_file(fd):
     os.close(fd)
 
 
+def generate_function_dict(function_dict, trigger, function):
+
+    if not function_dict:
+        function_dict = dict()
+    if trigger not in function_dict:
+        function_dict[trigger] = list()
+    if function not in function_dict[trigger]:
+        function_dict[trigger].append(function)
+
+    return function_dict
+
+
 def set_function_container(ctx, trigger, function):
     """
     Sets a function to the specified container in the main request,
@@ -268,12 +280,7 @@ def set_function_container(ctx, trigger, function):
         raise ValueError('ERROR: There was an error getting trigger'
                          ' dictionary from the object.\n')
 
-    if not function_dict:
-        function_dict = DEFAULT_MD_STRING
-    if not function_dict[trigger]:
-        function_dict[trigger] = list()
-    if function not in function_dict[trigger]:
-        function_dict[trigger].append(function)
+    function_dict = generate_function_dict(function_dict, trigger, function)
 
     # 2nd: Get function specific metadata
     specific_md = ctx.req.body.rstrip()

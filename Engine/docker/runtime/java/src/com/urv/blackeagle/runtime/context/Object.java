@@ -120,6 +120,13 @@ public class Object {
 				}
 				return null;
 			}
+			
+			if (len != bytes) {
+				 char[] smallerData = new char[len];
+		         System.arraycopy(cbuf, 0, smallerData, 0, len);
+		         cbuf = smallerData;
+		    }
+
 			return String.valueOf(cbuf);
 		}
 		

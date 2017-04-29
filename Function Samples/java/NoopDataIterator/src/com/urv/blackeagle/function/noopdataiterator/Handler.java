@@ -11,7 +11,7 @@ public class Handler implements IFunction {
 	 */
 	public void invoke(Context ctx, Api api) {
 
-		ctx.logger.emitLog("Init Noop Data Iterator Function");
+		ctx.log.emit("Init Noop Data Iterator Function");
 
 		String data;
 		
@@ -19,7 +19,7 @@ public class Handler implements IFunction {
 			ctx.object.stream.write(data);
 		}
 
-		ctx.logger.emitLog("Ended Noop Data Iterator Function");
+		ctx.log.emit("Ended Noop Data Iterator Function");
 
 	}
 	
