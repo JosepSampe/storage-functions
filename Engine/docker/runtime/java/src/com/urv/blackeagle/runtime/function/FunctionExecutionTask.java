@@ -93,7 +93,7 @@ public class FunctionExecutionTask implements Runnable {
 				IFunction function = f.getFunction();
 				logger_.trace("START: Going to execute '"+functionName+"' function");
 				function.invoke(ctx, api);
-				ctx.request.forward();
+				//ctx.request.forward();
 				ctx.object.stream.close();
 				ctx.object.metadata.flush();
 				logger_.trace("END: Function '"+functionName+"' executed");

@@ -28,7 +28,7 @@ public class Handler implements IFunction {
 		try {			
 			iv = new IvParameterSpec(initVector.getBytes("UTF-8"));
 			skeySpec = new SecretKeySpec(key.getBytes("UTF-8"), "AES");
-	        cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");				
+			cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");				
 			cipher.init(Cipher.ENCRYPT_MODE, skeySpec, iv);
 			cipherBlob = cipher.update(data.getBytes("UTF-8"));
 			out_data = new String(Base64.getEncoder().encode(cipherBlob));

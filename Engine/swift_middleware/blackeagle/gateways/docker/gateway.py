@@ -28,7 +28,7 @@ class DockerGateway():
         self.execution_server = conf["execution_server"]
         self.workers = int(conf["workers"])
 
-        self.fast = False
+        self.fast = True
         # self.fast = True
 
         # Paths

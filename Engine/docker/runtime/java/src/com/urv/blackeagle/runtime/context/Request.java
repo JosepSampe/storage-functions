@@ -34,6 +34,7 @@ public class Request {
 	public void forward(){
 		logger_.trace("Sending command: CONTINUE");
 		outMetadata.put("command","CONTINUE");
+		// TODO: is it necessary to offload object metadata here?
 		if (object.metadata.isModified())
 			outMetadata.put("object_metadata", object.metadata.getAll());
 		if (response.headers.isModified())
@@ -41,7 +42,7 @@ public class Request {
 		if (this.headers.isModified())
 			outMetadata.put("request_headers", headers);
 		
-		this.execute();
+		this.sendCommand();
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -49,7 +50,7 @@ public class Request {
 		logger_.trace("Sending command: CANCEL");
 		outMetadata.put("command", "CANCEL");
 		outMetadata.put("message", message);
-		this.execute();
+		this.sendCommand();
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -57,10 +58,10 @@ public class Request {
 		logger_.trace("Sending command: REWIRE");
 		outMetadata.put("command", "REWIRE");
 		outMetadata.put("object_id", object_id);
-		this.execute();
+		this.sendCommand();
 	}
 	
-	private void execute() {
+	private void sendCommand() {
 		try {
 			command.write(outMetadata.toString().getBytes());
 			command.flush();

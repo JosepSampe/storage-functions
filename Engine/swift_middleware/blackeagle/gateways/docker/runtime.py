@@ -286,22 +286,26 @@ class FunctionInvocationProtocol(object):
             return data
 
     def _read_response(self):
-        f_response = dict()
-        for function_name in self.function_list:
-            self._wait_for_read_with_timeout(self.command_read_fd)
-            flat_json = os.read(self.command_read_fd, 2048)
+        f_resp = dict()
+        for f_name in self.function_list:
+            try:
+                self._wait_for_read_with_timeout(self.command_read_fd)
+                flat_json = os.read(self.command_read_fd, 2048)
 
-            if flat_json:
-                f_response[function_name] = self.byteify(json.loads(flat_json))
-            else:
-                f_response[function_name] = dict()
-                f_response[function_name]['command'] = 'CANCEL'
-                f_response[function_name]['message'] = ('Error running ' + function_name +
-                                                        ': No response from function.')
+                if flat_json:
+                    f_resp[f_name] = self.byteify(json.loads(flat_json))
+                else:
+                    raise ValueError('No response from function')
+            except:
+                # TODO: handle timeout or no response exception
+                f_resp[f_name] = dict()
+                f_resp[f_name]['command'] = 'CANCEL'
+                f_resp[f_name]['message'] = ('Error running ' + f_name +
+                                             ': No response from function.')
 
         out_data = dict()
-        for function_name in self.function_list:
-            command = f_response[function_name]['command']
+        for f_name in self.function_list:
+            command = f_resp[f_name]['command']
 
             if command == 'DATA_READ':
                 self._send_data_to_container()
@@ -313,29 +317,29 @@ class FunctionInvocationProtocol(object):
                 break
             if command == 'CANCEL':
                 out_data['command'] = command
-                out_data['message'] = f_response[function_name]['message']
+                out_data['message'] = f_resp[f_name]['message']
                 break
             if command == 'REWIRE':
                 out_data['command'] = command
-                out_data['object_id'] = f_response[function_name]['object_id']
+                out_data['object_id'] = f_resp[f_name]['object_id']
                 break
             if command == 'STORLET':
                 out_data['command'] = command
                 if 'list' not in out_data:
                     out_data['list'] = dict()
-                for k in sorted(f_response[function_name]['list']):
+                for k in sorted(f_resp[f_name]['list']):
                     new_key = len(out_data['list'])
-                    out_data['list'][new_key] = f_response[function_name]['list'][k]
+                    out_data['list'][new_key] = f_resp[f_name]['list'][k]
                 break
             if command == 'CONTINUE':
                 out_data['command'] = command
 
-            if 'object_metadata' in f_response[function_name]:
-                out_data['object_metadata'] = f_response[function_name]['object_metadata']
-            if 'request_headers' in f_response[function_name]:
-                out_data['request_headers'] = f_response[function_name]['request_headers']
-            if 'response_headers' in f_response[function_name]:
-                out_data['response_headers'] = f_response[function_name]['response_headers']
+            if 'object_metadata' in f_resp[f_name]:
+                out_data['object_metadata'] = f_resp[f_name]['object_metadata']
+            if 'request_headers' in f_resp[f_name]:
+                out_data['request_headers'] = f_resp[f_name]['request_headers']
+            if 'response_headers' in f_resp[f_name]:
+                out_data['response_headers'] = f_resp[f_name]['response_headers']
 
         return out_data
 
