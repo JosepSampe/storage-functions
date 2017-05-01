@@ -8,6 +8,7 @@ import os
 import subprocess
 import time
 import cmd
+import sys
 
 FUNCTION_FD_INPUT_OBJECT = 0
 FUNCTION_FD_OUTPUT_OBJECT = 1
@@ -290,7 +291,7 @@ class FunctionInvocationProtocol(object):
         for f_name in self.function_list:
             try:
                 self._wait_for_read_with_timeout(self.command_read_fd)
-                flat_json = os.read(self.command_read_fd, 2048)
+                flat_json = os.read(self.command_read_fd, 12)
 
                 if flat_json:
                     f_resp[f_name] = self.byteify(json.loads(flat_json))
@@ -298,32 +299,38 @@ class FunctionInvocationProtocol(object):
                     raise ValueError('No response from function')
             except:
                 # TODO: handle timeout or no response exception
+                e = sys.exc_info()[1]
                 f_resp[f_name] = dict()
-                f_resp[f_name]['command'] = 'CANCEL'
+                f_resp[f_name]['cmd'] = 'RE'  # Request Error
                 f_resp[f_name]['message'] = ('Error running ' + f_name +
                                              ': No response from function.')
 
+        # TODO: read extra data from pipe
         out_data = dict()
         for f_name in self.function_list:
-            command = f_resp[f_name]['command']
+            command = f_resp[f_name]['cmd']
 
-            if command == 'DATA_READ':
+            if command == 'DR':
+                # Data Read
                 self._send_data_to_container()
                 out_data = self._read_response()
                 break
-            if command == 'DATA_WRITE':
+            if command == 'DW':
+                # Data Write
                 out_data['command'] = command
                 out_data['read_fd'] = self.output_data_read_fd
-                break
-            if command == 'CANCEL':
+            if command == 'RE':
+                # Request Error
                 out_data['command'] = command
                 out_data['message'] = f_resp[f_name]['message']
                 break
-            if command == 'REWIRE':
+            if command == 'RR':
+                # Request Rewire
                 out_data['command'] = command
                 out_data['object_id'] = f_resp[f_name]['object_id']
                 break
-            if command == 'STORLET':
+            if command == 'RS':
+                # Request Storlet
                 out_data['command'] = command
                 if 'list' not in out_data:
                     out_data['list'] = dict()
@@ -331,7 +338,7 @@ class FunctionInvocationProtocol(object):
                     new_key = len(out_data['list'])
                     out_data['list'][new_key] = f_resp[f_name]['list'][k]
                 break
-            if command == 'CONTINUE':
+            if command == 'RC':
                 out_data['command'] = command
 
             if 'object_metadata' in f_resp[f_name]:
@@ -340,6 +347,9 @@ class FunctionInvocationProtocol(object):
                 out_data['request_headers'] = f_resp[f_name]['request_headers']
             if 'response_headers' in f_resp[f_name]:
                 out_data['response_headers'] = f_resp[f_name]['response_headers']
+
+        if out_data['command'] != 'DW':
+            os.close(self.output_data_read_fd)
 
         return out_data
 

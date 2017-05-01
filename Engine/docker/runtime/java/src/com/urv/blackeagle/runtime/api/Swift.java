@@ -51,15 +51,15 @@ public class Swift {
 		storageUrl = swiftBackend+"AUTH_"+projectId+"/";
 		logger_ = logger;
 
-		redis = new Jedis(redisHost,redisPort);
-		redis.select(redisDefaultDatabase);
+		//redis = new Jedis(redisHost,redisPort);
+		//redis.select(redisDefaultDatabase);
 		metadata = new Metadata();
-		
+		/*
 		try {
 			mc = new MemcachedClient(new InetSocketAddress(memcachedHost, memcachedPort));
 		} catch (IOException e) {
 			logger_.trace("Failed to create Memcached client");
-		}
+		}*/
 		
 		logger_.trace("API Swift created");
 	}

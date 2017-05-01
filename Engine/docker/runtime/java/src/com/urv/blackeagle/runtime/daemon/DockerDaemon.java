@@ -9,7 +9,7 @@ import com.urv.blackeagle.runtime.function.FunctionExecutionTask;
 import java.util.concurrent.*;
 
 /*----------------------------------------------------------------------------
- * VertigoDockerDaemon
+ * DockerDaemon - Java Runtime
  *  
  * */
 public class DockerDaemon {
@@ -18,6 +18,7 @@ public class DockerDaemon {
 	private static SBus bus_;
 	private static ExecutorService threadPool_;
 	private static int nDefaultTimeoutToWaitBeforeShutdown_ = 3;
+	private static char id;
 
 	/*------------------------------------------------------------------------
 	 * initLog
@@ -26,7 +27,7 @@ public class DockerDaemon {
 		Level newLevel = Level.toLevel(strLogLevel);
 		boolean bStatus = true;
 		try {
-			logger_ = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("DockerDaemon");
+			logger_ = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("DockerDaemon "+id);
 			logger_.setLevel(newLevel);
 			logger_.info("Logger Started");
 		} catch (Exception e) {
@@ -62,6 +63,8 @@ public class DockerDaemon {
 		int nPoolSize = Integer.parseInt(args[2]);
 		String strContId = args[3];
 		
+		id = strBusPath.charAt(strBusPath.length() - 1);
+		
 		if (initLog(strLogLevel) == false)
 			return;
 
@@ -69,7 +72,7 @@ public class DockerDaemon {
 		bus_ = new SBus(strContId);
 
 		try {
-			logger_.trace("Initialising Swift bus");
+			logger_.trace("Initialising Swift bus "+strBusPath);
 			bus_.create(strBusPath);
 		} catch (IOException e) {
 			logger_.error("Failed to create Swift and API Bus");
@@ -109,7 +112,8 @@ public class DockerDaemon {
 				break;
 
 			}
-
+			
+			logger_.trace("Going to create the task");
 			FunctionExecutionTask functionTask = new FunctionExecutionTask(dtg, logger_);
 			threadPool_.execute(functionTask);
 		}

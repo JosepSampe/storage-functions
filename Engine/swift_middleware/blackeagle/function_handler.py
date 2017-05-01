@@ -64,7 +64,7 @@ def filter_factory(global_conf, **local_conf):
 
     conf['devices'] = conf.get('devices', '/srv/node')
     conf['execution_server'] = conf.get('execution_server')
-    conf['function_timeout'] = conf.get('function_timeout', 8)
+    conf['function_timeout'] = conf.get('function_timeout', 10)
     conf['function_pipe'] = conf.get('function_pipe', 'function_pipe')
     conf['docker_img_prefix'] = conf.get('docker_img_prefix', 'blackeagle')
     conf['metadata_visibility'] = conf.get('metadata_visibility', True)

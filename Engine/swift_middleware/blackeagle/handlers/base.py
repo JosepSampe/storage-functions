@@ -266,7 +266,8 @@ class BaseHandler(object):
         """
         Processes the data returned from the function
         """
-        if f_data['command'] == 'DATA_WRITE':
+        if f_data['command'] == 'DW':
+            # Data Write from function
             data_read_fd = f_data['read_fd']
             self.req.environ['wsgi.input'] = DataFdIter(data_read_fd)
             if 'request_headers' in f_data:
@@ -274,22 +275,25 @@ class BaseHandler(object):
             if 'object_metadata' in f_data:
                 self.req.headers.update(f_data['object_metadata'])
 
-        elif f_data['command'] == 'CONTINUE':
+        elif f_data['command'] == 'RC':
+            # Request Continue: normal req. execution
             if 'request_headers' in f_data:
                 self.req.headers.update(f_data['request_headers'])
             if 'object_metadata' in f_data:
                 self.req.headers.update(f_data['object_metadata'])
 
-        elif f_data['command'] == 'STORLET':
+        elif f_data['command'] == 'RS':
             slist = f_data['list']
             self.logger.info('Go to execute Storlets: ' + str(slist))
             self.apply_storlet_on_put(slist)
 
-        elif f_data['command'] == 'REWIRE':
+        elif f_data['command'] == 'RR':
+            # Request Rewire to another object
             pass
             # TODO
 
-        elif f_data['command'] == 'CANCEL':
+        elif f_data['command'] == 'RE':
+            # Request Error
             msg = f_data['message']
             return Response(body=msg + '\n', headers={'etag': ''},
                             request=self.req)
@@ -305,7 +309,8 @@ class BaseHandler(object):
         """
         Processes the data returned from the function
         """
-        if f_data['command'] == 'DATA_WRITE':
+        if f_data['command'] == 'DW':
+            # Data Write from function
             data_read_fd = f_data['read_fd']
             response.app_iter = DataFdIter(data_read_fd)
             if 'object_metadata' in f_data:
@@ -322,23 +327,27 @@ class BaseHandler(object):
 
             return response
 
-        elif f_data['command'] == 'CONTINUE':
+        elif f_data['command'] == 'RC':
+            # Request Continue: normal req. execution
             if 'object_metadata' in f_data:
                 response.headers.update(f_data['object_metadata'])
             if 'response_headers' in f_data:
                 response.headers.update(f_data['response_headers'])
             return response
 
-        elif f_data['command'] == 'STORLET':
+        elif f_data['command'] == 'RS':
+            # Request Storlet: execute Storlet
             slist = f_data['list']
             self.logger.info('Go to execute Storlets: ' + str(slist))
             return self.apply_storlet_on_get(response, slist)
 
-        elif f_data['command'] == 'REWIRE':
+        elif f_data['command'] == 'RR':
+            # Request Rewire to another object
             pass
             # TODO
 
-        elif f_data['command'] == 'CANCEL':
+        elif f_data['command'] == 'RE':
+            # Request Error
             msg = f_data['message']
             return Response(body=msg + '\n', headers={'etag': ''},
                             request=self.req)

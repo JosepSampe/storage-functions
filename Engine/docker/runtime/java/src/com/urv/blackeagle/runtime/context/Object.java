@@ -170,14 +170,14 @@ public class Object {
 		
 		@SuppressWarnings("unchecked")
 		public void sendReadCommand() {
-			outMetadata.put("command","DATA_READ");
+			outMetadata.put("cmd","DR");
 			this.sendCommand();
 
 		}
 		
 		@SuppressWarnings("unchecked")
 		public void sendWriteCommand() {
-			outMetadata.put("command","DATA_WRITE");
+			outMetadata.put("cmd","DW");
 			if (metadata.isModified())
 				outMetadata.put("object_metadata", metadata.getAll());
 			if (response.headers.isModified())
