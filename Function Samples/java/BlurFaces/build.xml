@@ -1,0 +1,28 @@
+<project>
+	
+	<target name="clean">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+		<copy todir="bin/com/urv/blackeagle/function/blurfaces/">
+		       <fileset dir="src/resources" includes="**/*.xml"/>
+		</copy>
+	</target>
+
+	<target name="compile">
+		<javac srcdir="src/" destdir="bin" includeantruntime="false">
+			<classpath>
+		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+				<pathelement path="lib/json-simple-1.1.1.jar"/>
+				<pathelement path="lib/commons-io-2.5.jar"/>
+				<pathelement path="lib/opencv-320.jar"/>
+			</classpath>		
+		</javac>
+	    <jar destfile="bin/blurfaces-1.0.jar" 
+	        basedir="bin"
+	     	includes="**/*.class,**/*.xml">
+	    </jar>
+	</target>
+	
+	<target name="build" depends="clean, compile"/>
+
+</project>

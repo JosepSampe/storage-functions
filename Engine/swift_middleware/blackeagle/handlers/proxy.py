@@ -326,20 +326,38 @@ class ProxyHandler(BaseHandler):
 
         return function_metadata
 
-    def _handle_request_trough_middlebox(self, response):
-        node = 'compute1'
+    def _handle_request_trough_middlebox(self):
+
+        data = dict()
+        data['storage_node'] = '192.168.2.24'
+        data['storage_port'] = 6000
+        data['policy'] = 1
+        data['device'] = 'sdb1'
+        data['part'] = 101
+        self.req.headers['Middlebox'] = data
+
+        node = '192.168.2.31'
         port = '8080'
         url = os.path.join('http://', node+':'+port, self.api_version, self.account)
         parsed, conn = http_connection(url)
         path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
-        self.req.headers['Middlebox'] = response.headers.pop('Middlebox')
+        # self.req.headers['Middlebox'] = response.headers.pop('Middlebox')
+        print "---------------0---------------"
+        self.req.headers.pop('Content-Type')
+        self.req.headers.pop('X-Domain-Name')
+        self.req.headers.pop('X-Domain-Id')
         conn.request(self.method, path, '', self.req.headers)
+        print "---------------1---------------"
         resp = conn.getresponse()
         resp_headers = {}
         for header, value in resp.getheaders():
             resp_headers[header] = value
-        response.headers.update(resp_headers)
-        response.app_iter = DataIter(resp, 5)
+
+        # response.headers.update(resp_headers)
+        # response.app_iter = DataIter(resp, 5)
+
+        response = Response(app_iter=DataIter(resp, 5), headers=resp_headers,
+                            request=self.req)
 
         return response
 
@@ -375,21 +393,26 @@ class ProxyHandler(BaseHandler):
         if self.is_middlebox_request:
             # I am a middlewbox
             response = self._get_response_from_middlebox()
+            response = self.apply_function_on_post_get(response)
         else:
             path = os.path.join(self.account, self.container, self.obj)
             function_metadata = self.memcache.get("function_md_"+path)
             if function_metadata:
                 path = self.req.path
                 self.req.environ['QUERY_STRING'] = 'multipart-manifest=get'
-            response = self.req.get_response(self.app)
-        # self.req = self.apply_function_on_pre_get()
 
-        response = self.apply_function_on_post_get(response)
+            middlebox = False
 
-        if 'Middlebox' in response.headers:
-            # The Object Storage node does not have enough resources, it will
-            # get the object through the Middlebox.
-            response = self._handle_request_trough_middlebox(response)
+            if 'X-Middlebox' in self.req.headers:
+                middlebox = True
+
+            if middlebox:
+                # print "------------------", 'No Available Resources: '+str(reqs)
+                response = self._handle_request_trough_middlebox()
+            else:
+                # print "------------------", 'Available Resources: '+str(reqs)
+                response = self.req.get_response(self.app)
+                response = self.apply_function_on_post_get(response)
 
         if 'Content-Length' not in response.headers and \
            'Transfer-Encoding' in response.headers:

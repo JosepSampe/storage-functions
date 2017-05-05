@@ -573,7 +573,7 @@ def get_function_list_object(function_metadata, method):
 class DataFdIter(object):
     def __init__(self, fd):
         self.closed = False
-        self.fd = fd
+        self.data_fd = fd
         self.timeout = 10
         self.buf = b''
 
@@ -583,7 +583,7 @@ class DataFdIter(object):
     def read_with_timeout(self, size):
         try:
             with Timeout(self.timeout):
-                chunk = os.read(self.fd, size)
+                chunk = os.read(self.data_fd, size)
         except Timeout:
             if self.cancel_func:
                 self.cancel_func()
@@ -596,11 +596,11 @@ class DataFdIter(object):
 
     def next(self, size=64 * 1024):
         if len(self.buf) < size:
-            r, _, _ = select.select([self.fd], [], [], self.timeout)
+            r, _, _ = select.select([self.data_fd], [], [], self.timeout)
             if len(r) == 0:
                 self.close()
 
-            if self.fd in r:
+            if self.data_fd in r:
                 self.buf += self.read_with_timeout(size - len(self.buf))
                 if self.buf == b'':
                     raise StopIteration('Stopped iterator ex')
@@ -669,7 +669,7 @@ class DataFdIter(object):
     def close(self):
         if self.closed:
             return
-        os.close(self.fd)
+        os.close(self.data_fd)
         self.closed = True
 
     def __del__(self):

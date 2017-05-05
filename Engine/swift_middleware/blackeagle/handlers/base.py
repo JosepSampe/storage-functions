@@ -268,8 +268,8 @@ class BaseHandler(object):
         """
         if f_data['command'] == 'DW':
             # Data Write from function
-            data_read_fd = f_data['read_fd']
-            self.req.environ['wsgi.input'] = DataFdIter(data_read_fd)
+            new_fd = f_data['fd']  # Data from function fd
+            self.req.environ['wsgi.input'] = DataFdIter(new_fd)
             if 'request_headers' in f_data:
                 self.req.headers.update(f_data['request_headers'])
             if 'object_metadata' in f_data:
@@ -311,8 +311,8 @@ class BaseHandler(object):
         """
         if f_data['command'] == 'DW':
             # Data Write from function
-            data_read_fd = f_data['read_fd']
-            response.app_iter = DataFdIter(data_read_fd)
+            new_fd = f_data['fd']
+            response.app_iter = DataFdIter(new_fd)
             if 'object_metadata' in f_data:
                 response.headers.update(f_data['object_metadata'])
             if 'response_headers' in f_data:

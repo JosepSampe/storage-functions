@@ -20,6 +20,7 @@ import com.urv.blackeagle.runtime.api.Swift;
 
 
 public class Object {
+	private static final int CHUNK = 65535;
 	private String object;
 	private Swift swift;
 	private Logger logger_;	
@@ -91,10 +92,45 @@ public class Object {
 				logger_.trace("Error: Unsuported encoding URF-8");
 			}
 		}
+		
+		public byte[] readBytes(){
+			return this.readBytes(CHUNK);	
+		}
+		
+		public byte[] readBytes(int bytes){
+			int len = 0;
+			byte[] b = new byte[bytes];
+			try {
+				if (dataRead == false){
+					dataRead = true;
+					this.sendReadCommand();
+				}
+				len = inputStream.read(b);
+			} catch (IOException e) {
+				logger_.trace("Error while reading input data from the object");
+				len = -1;
+			}
+			if (len == -1){
+				try {
+					br.close();
+					inputStream.close();
+					logger_.trace("Closed input stream");
+				} catch (IOException e) {
+					logger_.trace("Error closing buffered reader (input)");
+				}
+				return null;
+			}
+			
+			if (len != bytes) {
+				byte[] smallerData = new byte[len];
+		         System.arraycopy(b, 0, smallerData, 0, len);
+		         b = smallerData;
+		    }
+			return b;
+		}
 
 		public String read(){
-			String chunk = this.read(65535);
-			return chunk;
+			return this.read(CHUNK);
 		}
 
 		public String read(int bytes){
@@ -143,6 +179,18 @@ public class Object {
 			}
 			return line;
 		}	
+		
+		public void writeBytes(byte[] data){
+			try {
+				if (dataWrite == false){
+					dataWrite = true;
+					this.sendWriteCommand();
+				}
+				outputStream.write(data);
+			} catch (IOException e) {
+				logger_.trace("Error while writing out data");
+			}
+		}
 		
 		public void write(String data){
 			try {

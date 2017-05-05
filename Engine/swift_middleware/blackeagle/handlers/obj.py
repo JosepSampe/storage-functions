@@ -45,6 +45,10 @@ class ObjectHandler(BaseHandler):
         """
         GET handler on Object
         """
+
+        r = self._generate_middlebox_response()
+        print r.headers['Middlebox']
+
         available_compute_resources = True
 
         if not self.is_middlebox_request and not available_compute_resources:

@@ -180,6 +180,7 @@ class FunctionInvocationProtocol(object):
         self.internal_pipe = False
 
     def _add_input_object_stream(self):
+        # Actual object from swift passed to function
         if hasattr(self.input_stream, '_fp'):
             self.input_data_read_fd = self.input_stream._fp.fileno()
         else:
@@ -234,11 +235,17 @@ class FunctionInvocationProtocol(object):
         self._add_output_command_stream()
         self._add_function_data()
 
+    def _close_local_side_descriptors(self):
+        if self.output_data_read_fd:
+            os.close(self.output_data_read_fd)
+
     def _close_remote_side_descriptors(self):
         if self.output_data_write_fd:
             os.close(self.output_data_write_fd)
         if self.command_write_fd:
             os.close(self.command_write_fd)
+        if self.internal_pipe and self.input_data_read_fd:
+            os.close(self.input_data_read_fd)
 
     def _invoke(self):
         dtg = Datagram()
@@ -259,15 +266,15 @@ class FunctionInvocationProtocol(object):
         if fd in r:
             return
 
-    def _send_data_to_container(self):
+    def _send_data_to_function(self):
         if self.internal_pipe:
             eventlet.spawn_n(self._write_input_data,
                              self.input_data_write_fd,
                              self.input_stream)
 
-    def _write_input_data(self, fd, data_iter):
+    def _write_input_data(self, w_fd, data_iter):
         try:
-            writer = os.fdopen(fd, 'w')
+            writer = os.fdopen(w_fd, 'w')
             for chunk in data_iter:
                 with Timeout(self.timeout):
                     writer.write(chunk)
@@ -312,13 +319,13 @@ class FunctionInvocationProtocol(object):
 
             if command == 'DR':
                 # Data Read
-                self._send_data_to_container()
+                self._send_data_to_function()
                 out_data = self._read_response()
                 break
             if command == 'DW':
                 # Data Write
                 out_data['command'] = command
-                out_data['read_fd'] = self.output_data_read_fd
+                out_data['fd'] = self.output_data_read_fd
             if command == 'RE':
                 # Request Error
                 out_data['command'] = command
@@ -349,7 +356,7 @@ class FunctionInvocationProtocol(object):
                 out_data['response_headers'] = f_resp[f_name]['response_headers']
 
         if out_data['command'] != 'DW':
-            os.close(self.output_data_read_fd)
+            self._close_local_side_descriptors()
 
         return out_data
 

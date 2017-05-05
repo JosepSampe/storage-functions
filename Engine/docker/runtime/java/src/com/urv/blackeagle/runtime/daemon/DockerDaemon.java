@@ -1,6 +1,8 @@
 package com.urv.blackeagle.runtime.daemon;
 
 import java.io.IOException;
+
+import org.opencv.core.Core;
 import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Level;
 import com.ibm.storlet.sbus.*;
@@ -70,6 +72,8 @@ public class DockerDaemon {
 
 		logger_.trace("Instanciating Bus");
 		bus_ = new SBus(strContId);
+		
+		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 
 		try {
 			logger_.trace("Initialising Swift bus "+strBusPath);
