@@ -8,7 +8,7 @@ import com.google.common.util.concurrent.RateLimiter;
 public class Handler implements IFunction {
 	
     final double ONE_MB = 1024*1024;
-    final RateLimiter limiter = RateLimiter.create(10*ONE_MB);
+    final RateLimiter limiter = RateLimiter.create(30*ONE_MB);
     
 	/***
 	 * function entry method. 

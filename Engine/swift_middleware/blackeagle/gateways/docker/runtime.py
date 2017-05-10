@@ -238,6 +238,7 @@ class FunctionInvocationProtocol(object):
     def _close_local_side_descriptors(self):
         if self.output_data_read_fd:
             os.close(self.output_data_read_fd)
+            self.output_data_read_fd = None
 
     def _close_remote_side_descriptors(self):
         if self.output_data_write_fd:

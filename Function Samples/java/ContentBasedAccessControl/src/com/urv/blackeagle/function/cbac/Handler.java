@@ -60,7 +60,9 @@ public class Handler implements IFunction {
 		
 		ctx.log.emit("Init CBAC Function");
 		
-		String requetRoles = ctx.request.headers.get("X-Roles");
+		//String requetRoles = ctx.request.headers.get("X-Roles");
+		String requetRoles = "admin";
+
 		String role = ctx.function.metadata.get("role").toString();
 		String allowed_cols = ctx.function.metadata.get("allowed_cols").toString();
 		

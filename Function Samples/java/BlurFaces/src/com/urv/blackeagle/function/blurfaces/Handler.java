@@ -38,7 +38,7 @@ public class Handler implements IFunction {
 			String uuid = UUID.randomUUID().toString();
 			String tmp_file = "/tmp/"+uuid+".jpg";
 			String classsifier = "haarcascade_frontalface_alt.xml";
-
+			
 			ctx.log.emit("Extracting classifier to /tmp folder");
 			URL inputUrl = getClass().getResource(classsifier);
 			File dest = new File("/tmp/"+classsifier);

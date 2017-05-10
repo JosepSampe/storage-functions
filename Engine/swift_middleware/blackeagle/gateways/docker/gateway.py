@@ -28,8 +28,10 @@ class DockerGateway():
         self.execution_server = conf["execution_server"]
         self.workers = int(conf["workers"])
 
-        self.fast = True
-        # self.fast = True
+        if 'X-Reload' in self.req.headers:
+            self.fast = False
+        else:
+            self.fast = True
 
         # Paths
         self.scope_dir = os.path.join(conf["main_dir"], self.scope)
@@ -50,8 +52,8 @@ class DockerGateway():
         :param function_list: function list
         :returns: response from the function
         """
-        if not self.fast:
-            RuntimeSandbox(self.logger, self.conf, self.account).start()
+        #if not self.fast:
+        #    RuntimeSandbox(self.logger, self.conf, self.account).start()
 
         f_metadata = self._get_function_metadata(function_list)
         object_headers = self._get_object_headers()

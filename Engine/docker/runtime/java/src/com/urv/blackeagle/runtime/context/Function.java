@@ -26,7 +26,7 @@ public class Function {
 		object = currentObject;
 		swift = apiSwift;
 		
-		String metadataKey = "x-object-sysmeta-vertigo-on"+method+"-"+name;
+		String metadataKey = "x-object-sysmeta-function-on"+method+"-"+name;
 		for (String key: objectMetadata.keySet()){
 			if (key.toLowerCase().equals(metadataKey)){
 				String functionMetadata = objectMetadata.get(key);

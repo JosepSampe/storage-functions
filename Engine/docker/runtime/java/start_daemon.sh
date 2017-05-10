@@ -16,4 +16,4 @@ export LD_LIBRARY_PATH=/home/swift/
 #done
 #fi
 #/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/function_pipe_0 TRACE 1 $HOSTNAME
-/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/function_pipe_$1 TRACE 1 $HOSTNAME
+/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/function_pipe_$1 TRACE 4 $HOSTNAME

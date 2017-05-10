@@ -13,7 +13,9 @@ public class Api {
 	public Api(Map<String, String> reqMd, Logger localLog) 
 	{	
 		String projectId = reqMd.get("X-Project-Id");
-		String token = reqMd.get("X-Auth-Token");
+		String token = null;
+		if (reqMd.containsKey("X-Auth-Token"))
+			token = reqMd.get("X-Auth-Token");
 		
 		logger_ = localLog;
 		swift = new Swift(token, projectId, logger_);

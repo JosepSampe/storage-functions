@@ -10,6 +10,11 @@ import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -68,17 +73,32 @@ public class Handler implements IFunction {
         }).collect(Collectors.toCollection(ArrayList::new));
         
         
+		Map<String, Integer> userDict = new HashMap<>();
+		
         // 4. Operate over responses
         ctx.log.emit("Responses collected. Resuming Function.");
         int i = 1;
-        int total = 0;
         String result = null;
         for (Response r : responses) {
         	ctx.log.emit(String.format("\nResponse %d:", i++));
             if (r != null){
-            	result = r.getResponseBody();
-            	total +=  Integer.parseInt(result);
-            	ctx.log.emit(r.getResponseBody());
+            	try {
+            		result = r.getResponseBody();
+            		JSONObject jsonResult = (JSONObject) new JSONParser().parse(result);
+            		 
+            		ctx.log.emit("Response recived, parsing");
+            		for (Object key : jsonResult.keySet()) {
+            		        String userId = (String)key;
+            		        int value = Integer.parseInt(jsonResult.get(userId).toString());
+            		        if (userDict.containsKey(userId)){
+            					userDict.put(userId, userDict.get(userId) + value);
+            				} else {
+            					userDict.put(userId, value);
+            				}
+            		 }
+				} catch (ParseException e) {
+					 ctx.log.emit("Error parsing the response");
+				}	
             }
             else ctx.log.emit("Error: null request");
         }
@@ -89,11 +109,26 @@ public class Handler implements IFunction {
         } catch (IOException e) {
             e.printStackTrace();
         }
-		
-		 
-		ctx.object.stream.write("Total GET requests in the ubuntu-one trace sample: "+total+"\n");
+        
+        Map<String, Integer> topTen = sortByValue(userDict);
+        
+		ctx.object.stream.write(topTen.toString());
+
 		ctx.log.emit("Ended Reducer Function");
 
+	}
+	
+	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(Map<K, V> map) {
+	    return map.entrySet()
+	              .stream()
+	              .sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
+	              .limit(10)
+	              .collect(Collectors.toMap(
+	                Map.Entry::getKey, 
+	                Map.Entry::getValue, 
+	                (e1, e2) -> e1, 
+	                LinkedHashMap::new
+	              ));
 	}
 	
 }

@@ -402,15 +402,12 @@ class ProxyHandler(BaseHandler):
                 self.req.environ['QUERY_STRING'] = 'multipart-manifest=get'
 
             middlebox = False
-
             if 'X-Middlebox' in self.req.headers:
                 middlebox = True
 
             if middlebox:
-                # print "------------------", 'No Available Resources: '+str(reqs)
                 response = self._handle_request_trough_middlebox()
             else:
-                # print "------------------", 'Available Resources: '+str(reqs)
                 response = self.req.get_response(self.app)
                 response = self.apply_function_on_post_get(response)
 

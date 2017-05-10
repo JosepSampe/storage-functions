@@ -1,0 +1,27 @@
+<project>
+	
+	<target name="clean">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+	</target>
+
+	<target name="compile">
+		<javac srcdir="src/com/urv/blackeagle/function/signaturevalidator/" destdir="bin" includeantruntime="false">
+			<classpath>
+		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+		        <pathelement path="lib/bcmail-jdk15on-156.jar"/>
+		        <pathelement path="lib/bcpkix-jdk15on-156.jar"/>
+		        <pathelement path="lib/bcprov-jdk15on-156.jar"/>
+		        <pathelement path="lib/mail.jar"/>
+				<pathelement path="lib/json-simple-1.1.1.jar"/>
+			</classpath>		
+		</javac>
+	    <jar destfile="bin/signature-validator-1.0.jar" 
+	        basedir="bin"
+	     	includes="com/urv/blackeagle/function/signaturevalidator/*">
+	    </jar>
+	</target>
+	
+	<target name="build" depends="clean, compile"/>
+
+</project>

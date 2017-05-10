@@ -8,10 +8,10 @@
 	<target name="compile">
 		<javac srcdir="src/com/urv/blackeagle/" destdir="bin" includeantruntime="false">
 			<classpath>
-		        <pathelement path="lib/json_simple-1.1.jar"/>
+				<pathelement path="lib/json_simple-1.1.jar"/>
 				<pathelement path="lib/logback-classic-1.1.2.jar"/>
 				<pathelement path="lib/logback-core-1.1.2.jar"/>
-		        <pathelement path="lib/SBusJavaFacade.jar"/>
+				<pathelement path="lib/SBusJavaFacade.jar"/>
 				<pathelement path="lib/slf4j-api-1.7.7.jar"/>
 				<pathelement path="lib/jedis-2.9.0.jar"/>
 				<pathelement path="lib/spymemcached-2.12.1.jar"/>

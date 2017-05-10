@@ -47,16 +47,9 @@ public class Object {
 		response = resp;
 		swift = apiSwift;		
 		logger_ = logger;
-		objectMetadata.entrySet().removeIf(entry -> entry.getKey().startsWith("X-Object-Sysmeta-Vertigo"));
+		objectMetadata.entrySet().removeIf(entry -> entry.getKey().startsWith("X-Object-Sysmeta-Function"));
 
 		metadata = new Metadata(objectMetadata);
-		
-		timestamp = objectMetadata.get("X-Timestamp");
-		etag = objectMetadata.get("Etag");
-		lastModified = objectMetadata.get("Last-Modified");
-		contentLength = objectMetadata.get("Content-Length");
-		backendTimestamp = objectMetadata.get("X-Backend-Timestamp");
-		contentType = objectMetadata.get("Content-Type");
 		
 		logger_.trace("CTX Object created");
 	}
@@ -81,7 +74,7 @@ public class Object {
 		boolean dataRead = false, dataWrite = false;
 		private JSONObject outMetadata = new JSONObject();
 		
-		public Stream(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd){
+		private Stream(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd){
 			inputStream = ((InputStream) (new FileInputStream(inputStreamFd)));
 			outputStream = ((OutputStream) (new FileOutputStream(outputStreamFd)));
 			
@@ -91,6 +84,18 @@ public class Object {
 			} catch (UnsupportedEncodingException e) {
 				logger_.trace("Error: Unsuported encoding URF-8");
 			}
+		}
+		
+		public InputStream getInputStream(){
+			return inputStream;
+		}
+		
+		public OutputStream getOutputStream(){
+			if (dataWrite == false){
+				dataWrite = true;
+				this.sendWriteCommand();
+			}
+			return outputStream;
 		}
 		
 		public byte[] readBytes(){

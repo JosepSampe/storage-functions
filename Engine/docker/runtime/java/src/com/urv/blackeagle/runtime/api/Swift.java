@@ -51,8 +51,9 @@ public class Swift {
 		storageUrl = swiftBackend+"AUTH_"+projectId+"/";
 		logger_ = logger;
 
-		//redis = new Jedis(redisHost,redisPort);
-		//redis.select(redisDefaultDatabase);
+		redis = new Jedis(redisHost,redisPort);
+		redis.select(redisDefaultDatabase);
+		
 		metadata = new Metadata();
 		/*
 		try {
@@ -62,6 +63,11 @@ public class Swift {
 		}*/
 		
 		logger_.trace("API Swift created");
+	}
+	
+	public void close(){
+		redis.close();
+		//mc.shutdown();		
 	}
 
 	public class Metadata { 
@@ -169,9 +175,9 @@ public class Swift {
 		
 	}
 
-	public void setFunction(String source, String mc, String method, String metadata){
+	public void setFunction(String source, String functionName, String method, String metadata){
 		HttpURLConnection conn = newConnection(source);
-		conn.setRequestProperty("X-Function-on"+method, mc);
+		conn.setRequestProperty("X-Function-on"+method, functionName);
 		try {
 			conn.setRequestMethod("POST");
 		} catch (ProtocolException e) {
@@ -244,6 +250,9 @@ public class Swift {
 		sendRequest(conn);
 	}
 	
+	/*
+	 * Public method for deleting an object
+	 */
 	public void delete(String source){
 		HttpURLConnection conn = newConnection(source);
 		try {
@@ -253,14 +262,20 @@ public class Swift {
 		}
 		sendRequest(conn);
 	}
-	
-	public BufferedReader get(String source){
+
+	/*
+	 * Public method for getting an object without headers 
+	 */
+	public HttpURLConnection get(String source){
 		HttpURLConnection conn = newConnection(source);
 
 		return getObject(conn);
 	}
 	
-	public BufferedReader get(String source, Map<String, String> headers){
+	/*
+	 * Public method for getting an object with headers 
+	 */
+	public HttpURLConnection get(String source, Map<String, String> headers){
 		HttpURLConnection conn = newConnection(source);
 		
 		for (Map.Entry<String, String> entry : headers.entrySet()){
@@ -270,20 +285,16 @@ public class Swift {
 		return getObject(conn);
 	}
 	
-	private BufferedReader getObject(HttpURLConnection conn){
-		BufferedReader reader = null;
+	private HttpURLConnection getObject(HttpURLConnection conn){
 		conn.setDoOutput(false);
 		conn.setDoInput(true);
 		
 		try {
 			conn.setRequestMethod("GET");
-			reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 		} catch (ProtocolException pe) {
 			logger_.trace("Error: Bad Protocol");
-		} catch (IOException ioe) {
-			logger_.trace("Error: Can't get Input Stream");
-		}
-		return reader;	
+		} 
+		return conn;	
 	}
 
 	private HttpURLConnection newConnection(String source){
@@ -294,7 +305,7 @@ public class Swift {
 			url = new URL(storageUri);
 			conn = (HttpURLConnection) url.openConnection();
 			conn.setDoOutput(true);
-			conn.setRequestProperty("X-Auth-Token", token);
+			if (token != null) conn.setRequestProperty("X-Auth-Token", token);
 			conn.setRequestProperty("User-Agent", "function_java_runtime");
 		} catch (MalformedURLException e) {
 			logger_.trace("Error: Malformated URL");
