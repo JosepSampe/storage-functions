@@ -65,24 +65,29 @@ public class DockerDaemon {
 		int nPoolSize = Integer.parseInt(args[2]);
 		String strContId = args[3];
 		
+		System.out.println("Initializing Docker Daemon");
+		
 		id = strBusPath.charAt(strBusPath.length() - 1);
 		
 		if (initLog(strLogLevel) == false)
 			return;
 
 		logger_.trace("Instanciating Bus");
+		System.out.println("Instanciating Bus");
 		bus_ = new SBus(strContId);
 		
-		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+		//System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 
 		try {
 			logger_.trace("Initialising Swift bus "+strBusPath);
+			System.out.println("Initialising Swift bus "+strBusPath);
 			bus_.create(strBusPath);
 		} catch (IOException e) {
 			logger_.error("Failed to create Swift and API Bus");
 			return;
 		}
 		logger_.trace("Initialising thread pool with " + nPoolSize + " threads");
+		System.out.println("Initialising thread pool with " + nPoolSize + " threads");
 		threadPool_ = Executors.newFixedThreadPool(nPoolSize);
 	}
 

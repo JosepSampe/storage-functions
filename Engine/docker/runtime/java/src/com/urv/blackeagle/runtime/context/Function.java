@@ -16,7 +16,7 @@ public class Function {
 	private String object;
 	private Swift swift;
 	
-	public JSONObject metadata = null;
+	public JSONObject metadata = new JSONObject();
 
 	public Function(Map<String, String> objectMetadata, String mcName, String currentObject, 
 							  String requestMethod, Swift apiSwift, Logger logger) {
@@ -29,12 +29,12 @@ public class Function {
 		String metadataKey = "x-object-sysmeta-function-on"+method+"-"+name;
 		for (String key: objectMetadata.keySet()){
 			if (key.toLowerCase().equals(metadataKey)){
-				String functionMetadata = objectMetadata.get(key);
+				String functionMetadata = objectMetadata.get(key);				
 				if (functionMetadata != null) {
 					try{
 						metadata = (JSONObject) new JSONParser().parse(functionMetadata);
-					} catch (ParseException e1) {
-						e1.printStackTrace();
+					} catch (ParseException e) {
+						logger_.trace("Error parsing function metadata: "+e.getMessage());
 					}
 				}
 			}

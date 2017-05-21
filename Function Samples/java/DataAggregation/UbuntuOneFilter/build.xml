@@ -9,7 +9,7 @@
 		<javac srcdir="src/com/urv/blackeagle/function/uone/" destdir="bin" includeantruntime="false">
 			<classpath>
 		        <pathelement 
-		        	path="../blackeagle-runtime-1.0.jar"/>
+		        	path="../../blackeagle-runtime-1.0.jar"/>
 		        <pathelement 
 		        	path="lib/json_simple-1.1.jar"/>
 			</classpath>		

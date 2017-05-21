@@ -327,13 +327,12 @@ class ProxyHandler(BaseHandler):
         return function_metadata
 
     def _handle_request_trough_middlebox(self):
-
         data = dict()
         data['storage_node'] = '192.168.2.24'
         data['storage_port'] = 6000
         data['policy'] = 1
         data['device'] = 'sdb1'
-        data['part'] = 101
+        data['part'] = 1
         self.req.headers['Middlebox'] = data
 
         node = '192.168.2.31'
@@ -342,12 +341,13 @@ class ProxyHandler(BaseHandler):
         parsed, conn = http_connection(url)
         path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
         # self.req.headers['Middlebox'] = response.headers.pop('Middlebox')
-        print "---------------0---------------"
-        self.req.headers.pop('Content-Type')
-        self.req.headers.pop('X-Domain-Name')
-        self.req.headers.pop('X-Domain-Id')
+        if 'Content-Type' in self.req.headers:
+            self.req.headers.pop('Content-Type')
+        if 'X-Domain-Name' in self.req.headers:
+            self.req.headers.pop('X-Domain-Name')
+        if 'X-Domain-Id' in self.req.headers:
+            self.req.headers.pop('X-Domain-Id')
         conn.request(self.method, path, '', self.req.headers)
-        print "---------------1---------------"
         resp = conn.getresponse()
         resp_headers = {}
         for header, value in resp.getheaders():
@@ -363,7 +363,7 @@ class ProxyHandler(BaseHandler):
 
     def _get_response_from_middlebox(self):
         self.logger.info('I am the Middlebox')
-        response_timeout = 5
+        response_timeout = 50
         path = '/%s/%s/%s' % (self.account, self.container, self.obj)
         data = eval(self.req.headers['Middlebox'])
         self.req.headers['X-Backend-Storage-Policy-Index'] = data['policy']
@@ -377,8 +377,13 @@ class ProxyHandler(BaseHandler):
         with Timeout(response_timeout):
             resp = conn.getresponse()
         resp_headers = {}
+
         for header, value in resp.getheaders():
-            resp_headers[header] = value.replace('"', '')
+            if value.startswith('"'):
+                resp_headers[header] = value.replace('"', '')
+            else:
+                resp_headers[header] = value
+
         response = Response(app_iter=DataIter(resp, 10),
                             headers=resp_headers,
                             request=self.req)

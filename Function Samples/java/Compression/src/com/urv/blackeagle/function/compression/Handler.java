@@ -24,6 +24,7 @@ public class Handler implements IFunction {
 			while((buffer = ctx.object.stream.readBytes()) != null) {
 				tocompress.write(buffer);
 			}
+			tocompress.close();
 		} catch (IOException e) {
 			ctx.log.emit("Error compressing object");
 		}

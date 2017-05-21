@@ -87,6 +87,10 @@ public class Object {
 		}
 		
 		public InputStream getInputStream(){
+			if (dataRead == false){
+				dataRead = true;
+				this.sendReadCommand();
+			}
 			return inputStream;
 		}
 		
@@ -230,6 +234,11 @@ public class Object {
 		
 		@SuppressWarnings("unchecked")
 		public void sendWriteCommand() {
+			// Prevent to send the write command without have sent before the read command
+			if (dataRead == false){
+				dataRead = true;
+				this.sendReadCommand();
+			}
 			outMetadata.put("cmd","DW");
 			if (metadata.isModified())
 				outMetadata.put("object_metadata", metadata.getAll());
@@ -245,7 +254,7 @@ public class Object {
 				command.write(outMetadata.toString().getBytes());
 				command.flush();
 			} catch (IOException e) {
-				logger_.trace("Error sending DATA READ/WRITE command");
+				logger_.trace("Error sending "+ outMetadata.toString() + " command");
 			}
 		}
 		

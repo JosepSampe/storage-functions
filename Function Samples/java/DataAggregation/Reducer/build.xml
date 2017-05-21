@@ -8,7 +8,7 @@
 	<target name="compile">
 		<javac srcdir="src/com/urv/blackeagle/function/reducer/" destdir="bin" includeantruntime="false">
 			<classpath>
-		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+		        <pathelement path="../../blackeagle-runtime-1.0.jar"/>
 				<pathelement path="lib/json-simple-1.1.1.jar"/>
 				<pathelement path="lib/async-http-client-2.0.0.jar"/>
 				<pathelement path="lib/slf4j-api-1.7.21.jar"/>

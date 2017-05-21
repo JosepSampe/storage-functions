@@ -11,7 +11,6 @@ import org.json.simple.parser.ParseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,7 +38,7 @@ public class Handler implements IFunction {
 		String data;
 		String url;
 		String manifest = "";
-
+		
 		// 1. Load the manifest file
 		ctx.log.emit("Loading manifest.");
 		while((data = ctx.object.stream.read()) != null) {
@@ -60,60 +59,60 @@ public class Handler implements IFunction {
 		} catch (ParseException e) {
 			ctx.log.emit("Reducer function - raised IOException: " + e.getMessage());
 		}
-
+		
 		// 3. Wait for all responses
 		ctx.log.emit("Collecting http responses. Blocking.");
 		ArrayList<Response> responses = futures.stream().map(f -> {
-            try {
-                return f.get();
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-                return null;
-            }
-        }).collect(Collectors.toCollection(ArrayList::new));
-        
-        
+		    try {
+		        return f.get();
+		    } catch (InterruptedException | ExecutionException e) {
+		        e.printStackTrace();
+		        return null;
+		    }
+		}).collect(Collectors.toCollection(ArrayList::new));
+		
+		
 		Map<String, Integer> userDict = new HashMap<>();
 		
-        // 4. Operate over responses
-        ctx.log.emit("Responses collected. Resuming Function.");
-        int i = 1;
-        String result = null;
-        for (Response r : responses) {
-        	ctx.log.emit(String.format("\nResponse %d:", i++));
-            if (r != null){
-            	try {
-            		result = r.getResponseBody();
-            		JSONObject jsonResult = (JSONObject) new JSONParser().parse(result);
-            		 
-            		ctx.log.emit("Response recived, parsing");
-            		for (Object key : jsonResult.keySet()) {
-            		        String userId = (String)key;
-            		        int value = Integer.parseInt(jsonResult.get(userId).toString());
-            		        if (userDict.containsKey(userId)){
-            					userDict.put(userId, userDict.get(userId) + value);
-            				} else {
-            					userDict.put(userId, value);
-            				}
-            		 }
+		// 4. Operate over responses
+		ctx.log.emit("Responses collected. Resuming Function.");
+		int i = 1;
+		String result = null;
+		for (Response r : responses) {
+			ctx.log.emit(String.format("\nResponse %d:", i++));
+		    if (r != null){
+		    	try {
+		    		result = r.getResponseBody();
+		    		JSONObject jsonResult = (JSONObject) new JSONParser().parse(result);
+		    		 
+		    		ctx.log.emit("Response recived, parsing");
+		    		for (Object key : jsonResult.keySet()) {
+		    		        String userId = (String)key;
+		    		        int value = Integer.parseInt(jsonResult.get(userId).toString());
+		    		        if (userDict.containsKey(userId)){
+		    					userDict.put(userId, userDict.get(userId) + value);
+		    				} else {
+		    					userDict.put(userId, value);
+		    				}
+		    		 }
 				} catch (ParseException e) {
 					 ctx.log.emit("Error parsing the response");
 				}	
-            }
-            else ctx.log.emit("Error: null request");
-        }
+		    }
+		    else ctx.log.emit("Error: null request");
+		}
 		
-        // 5. Close async client
-        try {
-            asyncHttpClient.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        
-        Map<String, Integer> topTen = sortByValue(userDict);
-        
+		// 5. Close async client
+		try {
+		    asyncHttpClient.close();
+		} catch (IOException e) {
+		    e.printStackTrace();
+		}
+		
+		Map<String, Integer> topTen = sortByValue(userDict);
+		
 		ctx.object.stream.write(topTen.toString());
-
+		
 		ctx.log.emit("Ended Reducer Function");
 
 	}
