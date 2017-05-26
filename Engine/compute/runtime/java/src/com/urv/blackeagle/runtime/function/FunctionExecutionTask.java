@@ -46,7 +46,8 @@ public class FunctionExecutionTask implements Runnable {
 		Map<String, String> object_md = null;
 		Map<String, String> req_md = null;
 		
-		String functionName, functionMainClass, functionDependencies = null;
+		String functionName, functionMainClass, functionDependencies;
+		Map<String, String> functionParameters = null;
 		Api api = null;
 		Context ctx = null;
 		Function f = null;
@@ -65,7 +66,7 @@ public class FunctionExecutionTask implements Runnable {
 					object_md = (Map<String, String>) jsonMetadata.get("object_md");
 					req_md = (Map<String, String>) jsonMetadata.get("req_md");
 				} catch (ParseException e) {
-					e.printStackTrace();
+					logger_.trace("Error parsing object or request metadata");
 				}
 				jsonMetadata = null;
 				logger_.trace("Got object input stream and request metadata");
@@ -83,10 +84,16 @@ public class FunctionExecutionTask implements Runnable {
 				functionName = filesMD[i].get("function");
 				functionMainClass = filesMD[i].get("main");
 				functionDependencies = filesMD[i].get("dependencies");
+				try {
+					functionParameters = (Map<String, String>) new JSONParser().parse(filesMD[i].get("parameters"));
+				} catch (ParseException e) {
+					logger_.trace("Error parsing function parameters");
+				}			
+				
 				logger_.trace("Got "+functionName);
 				
 				api = new Api(req_md, logger_);
-				ctx = new Context(inputStreamFd, outputStreamFd, functionName, logStream, commandFd, object_md, req_md, logger_, api.swift);
+				ctx = new Context(inputStreamFd, outputStreamFd, functionName, functionParameters, logStream, commandFd, object_md, req_md, logger_, api.swift);
 				f = new Function(functionName, functionMainClass, functionDependencies, logger_);
 
 				logger_.trace("Function '"+functionName+"' loaded");

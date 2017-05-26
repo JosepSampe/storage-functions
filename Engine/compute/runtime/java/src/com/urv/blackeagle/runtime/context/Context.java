@@ -19,16 +19,16 @@ public class Context {
 	public Storlet storlet;
 
 
-	public Context(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd, String functionName, FileDescriptor logFd, 
-			   FileDescriptor commandFd, Map<String, String> objectMd, Map<String, String> reqMd, Logger localLog, Swift swift) 
+	public Context(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd, String functionName, 
+				   Map<String, String> functionParameters, FileDescriptor logFd, FileDescriptor commandFd, 
+				   Map<String, String> objectMd, Map<String, String> reqMd, Logger localLog, Swift swift) 
 	{	
 		String currentObject = reqMd.get("X-Container")+"/"+reqMd.get("X-Object");
-		String method = reqMd.get("X-Method");
 		
 		logger_ = localLog;
 		log = new Log(logFd, logger_);
 		storlet = new Storlet(commandFd, logger_);
-		function = new Function(objectMd, functionName, currentObject, method, swift, logger_);
+		function = new Function(functionParameters, logger_);
 		response = new Response(logger_);
 		request = new Request(commandFd, reqMd, response, logger_);
 		object = new Object(inputStreamFd, outputStreamFd, commandFd, objectMd, currentObject, request, response, swift, logger_);

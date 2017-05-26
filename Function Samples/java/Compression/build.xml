@@ -1,25 +1,37 @@
 <project>
-	
-	<target name="clean">
-		<delete dir="bin" />
-		<mkdir dir="bin" />
-	</target>
 
 	<target name="compile">
-		<javac srcdir="src/com/urv/blackeagle/function/compression/" destdir="bin" includeantruntime="false">
+		<mkdir dir="build" />
+		<manifest file="build/MANIFEST.MF">
+		  <attribute name="Main-Class"
+		             value="com.urv.blackeagle.function.compression.Handler" />
+		</manifest>
+		<javac srcdir="src/com/urv/blackeagle/function/compression/" destdir="build" includeantruntime="false">
 			<classpath>
-		        <pathelement 
-		        	path="../blackeagle-runtime-1.0.jar"/>
-				<pathelement 
-					path="lib/json-simple-1.1.1.jar"/>
+		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
 			</classpath>		
 		</javac>
-	    <jar destfile="bin/compression-1.0.jar" 
-	        basedir="bin"
+	    <jar destfile="build/compression-1.0.jar"
+	    	manifest="build/MANIFEST.MF"
+	        basedir="build"
 	     	includes="com/urv/blackeagle/function/compression/*">
 	    </jar>
 	</target>
+		
+	<target name="pack" depends="compile">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+		<tar destfile = "bin/compression.tar">
+			<tarfileset dir="build">
+			        <include name="compression-1.0.jar"/>
+			</tarfileset>
+			<tarfileset dir=".">
+			        <include name="lib/*.jar"/>
+			</tarfileset>
+		</tar>
+		<delete dir="build" />
+	</target>
 	
-	<target name="build" depends="clean, compile"/>
+	<target name="build" depends="compile, pack"/>
 
 </project>

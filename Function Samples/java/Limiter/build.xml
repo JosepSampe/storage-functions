@@ -1,27 +1,38 @@
 <project>
 
-	<target name="clean">
+	<target name="compile">
+		<mkdir dir="build" />
+		<manifest file="build/MANIFEST.MF">
+		  <attribute name="Main-Class"
+		             value="com.urv.vertigo.blackeagle.limiter.Handler" />
+		</manifest>
+		<javac srcdir="src/com/urv/blackeagle/function/limiter/" destdir="build" includeantruntime="false">
+			<classpath>
+		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+			</classpath>		
+		</javac>
+	    <jar destfile="build/access-limiter-1.0.jar"
+	     	  manifest="build/MANIFEST.MF"
+	          basedir="build"
+	     	  includes="com/urv/blackeagle/function/limiter/*">
+	    </jar>
+		
+	</target>
+	
+	<target name="pack" depends="compile">
 		<delete dir="bin" />
 		<mkdir dir="bin" />
-	</target>
-
-	<target name="compile">
-		<javac srcdir="src/com/urv/vertigo/function/limiter/" destdir="bin" includeantruntime="false">
-			<classpath>
-		        <pathelement 
-		        	path="lib/DockerDaemon.jar"/>
-				<pathelement 
-					path="lib/json-simple-1.1.1.jar"/>
-			</classpath>		</javac>
-
-	     <jar destfile="bin/limiter-1.0.jar" 
-	          basedir="bin"
-	     	  includes="com/urv/vertigo/function/limiter/*">
-	     </jar>
+		<tar destfile = "bin/access-limiter.tar">
+			<tarfileset dir="build">
+			        <include name="access-limiter-1.0.jar"/>
+			</tarfileset>
+			<tarfileset dir=".">
+			        <include name="lib/*.jar"/>
+			</tarfileset>
+		</tar>
+		<delete dir="build" />
 	</target>
 	
-
-	
-	<target name="build" depends="clean, compile"/>
+	<target name="build" depends="compile, pack"/>
 
 </project>

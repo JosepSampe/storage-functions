@@ -1,7 +1,6 @@
 from blackeagle.common.utils import make_swift_request, \
     set_object_metadata, get_object_metadata
-from blackeagle.gateways.docker.runtime import RuntimeSandbox, \
-    FunctionInvocationProtocol
+from blackeagle.gateways.docker.runtime import FunctionInvocationProtocol
 from shutil import copy2
 import os
 import ctypes
@@ -23,9 +22,11 @@ class DockerGateway():
         self.method = self.req.method.lower()
         self.scope = account[5:18]
         self.function_timeout = conf["function_timeout"]
-        self.function_container = conf["function_container"]
-        self.dep_container = conf["function_dependency"]
+        self.functions_container = conf["functions_container"]
         self.execution_server = conf["execution_server"]
+
+
+
         self.workers = int(conf["workers"])
 
         if 'X-Reload' in self.req.headers:
@@ -42,20 +43,22 @@ class DockerGateway():
         self.function_pipe_path = os.path.join(self.pipes_path,
                                                conf["function_pipe"]+"_"+tid)
 
-    def execute_function(self, function_list):
+    def execute_function(self, function_info):
         """
-        Exeutes the function list.
-         1. Starts the docker container (sandbox).
-         3. Gets the functions metadata.
-         4. Executes the function list.
+        Exeutes the function.
+         1. Tries to get an already started worker.
+         3. If not, launches one.
+         4. Executes the function.
 
         :param function_list: function list
         :returns: response from the function
         """
-        #if not self.fast:
-        #    RuntimeSandbox(self.logger, self.conf, self.account).start()
+        worker = self._get_worker(function_info)
 
-        f_metadata = self._get_function_metadata(function_list)
+        #if not worker:
+        #    worker = Worker(function_info)
+
+
         object_headers = self._get_object_headers()
         object_stream = self._get_object_stream()
 
@@ -196,7 +199,7 @@ class DockerGateway():
 
         return metadata
 
-    def _get_function_metadata(self, function_list):
+    def _get_function_metadata(self, function_data):
         """
         Retrieves the function metadata from the list of functions.
 

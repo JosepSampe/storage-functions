@@ -1,10 +1,8 @@
-from swift.proxy.controllers.base import get_account_info
-from swift.common.swob import HTTPUnauthorized, HTTPBadRequest, Range, Response
-from swift.common.utils import config_true_value
 from blackeagle.gateways import DockerGateway
-from blackeagle.gateways import StorletGateway
 from blackeagle.common.utils import DataFdIter
-from blackeagle.common.utils import get_function_list_object
+
+from swift.common.swob import Response
+import redis
 import os
 
 
@@ -49,25 +47,34 @@ class BaseHandler(object):
         self.conf = conf
         self.app = app
         self.logger = logger
-        self.method = self.req.method.lower()
+        self.method = self.req.method
         self.execution_server = conf["execution_server"]
-        self.function_containers = [conf.get('function_container'),
-                                    conf.get('function_dependency'),
-                                    conf.get('storlet_container'),
-                                    conf.get('storlet_dependency')]
-        self.available_set_headers = ['X-Function-Onget',
+        self.functions_container = conf.get('function_container')
+        self.available_set_headers = ['X-Function-Onput',
+                                      'X-Function-Onget',
+                                      'X-Function-Onget-Before',
                                       'X-Function-Onget-Manifest',
-                                      'X-Function-Ondelete',
-                                      'X-Function-Onput']
-        self.available_unset_headers = ['X-Function-Onget-Delete',
+                                      'X-Function-Ondelete']
+        self.available_unset_headers = ['X-Function-Onput-Delete',
+                                        'X-Function-Onget-Delete',
+                                        'X-Function-Onget-Before-Delete',
                                         'X-Function-Onget-Manifest-Delete',
                                         'X-Function-Ondelete-Delete',
-                                        'X-Function-Onput-Delete',
                                         'X-Function-Delete']
+        self.connect_metadata_server()
+
+    def connect_metadata_server(self):
+        self.redis_host = self.conf.get('redis_host')
+        self.redis_port = self.conf.get('redis_port')
+        self.redis_db = self.conf.get('redis_db')
+
+        self.metadata_server = redis.StrictRedis(self.redis_host,
+                                                 self.redis_port,
+                                                 self.redis_db)
 
     def _setup_docker_gateway(self, response=None):
         self.req.headers['X-Current-Server'] = self.execution_server
-        self.req.headers['X-Method'] = self.method
+        self.req.headers['X-Method'] = self.method.lower()
         self.req.headers['X-Current-Location'] = os.path.join("/", self.api_version,
                                                               self.account, self.container)
         self.req.headers['X-Project-Id'] = self.account.replace('AUTH_', '')
@@ -76,11 +83,6 @@ class BaseHandler(object):
         self.docker_gateway = DockerGateway(self.req, response,
                                             self.conf, self.logger,
                                             self.account)
-
-    def _setup_storlet_gateway(self):
-        self.storlet_gateway = StorletGateway(
-            self.conf, self.logger, self.app, self.api_version,
-            self.account, self.req.method)
 
     def _extract_vaco(self):
         """
@@ -91,30 +93,6 @@ class BaseHandler(object):
         """
         self._api_version, self._account, self._container, self._obj = \
             self._parse_vaco()
-
-    def get_function_set_data(self):
-        header = [i for i in self.available_set_headers
-                  if i in self.req.headers.keys()]
-        if len(header) > 1:
-            raise HTTPUnauthorized('The system can only set 1 '
-                                   'function at a time.\n')
-
-        trigger = header[0].lower().replace('-manifest', '').rsplit('-', 1)[1]
-        function = self.req.headers[header[0]]
-
-        return trigger, function
-
-    def get_function_unset_data(self):
-        header = [i for i in self.available_unset_headers
-                  if i in self.req.headers.keys()]
-        if len(header) > 1:
-            raise HTTPUnauthorized('The system can only unset 1 '
-                                   'function at a time.\n')
-
-        trigger = header[0].lower().replace('-manifest', '').rsplit('-', 2)[1]
-        function = self.req.headers[header[0]]
-
-        return trigger, function
 
     @property
     def api_version(self):
@@ -148,15 +126,6 @@ class BaseHandler(object):
         raise NotImplementedError()
 
     @property
-    def is_storlet_execution(self):
-        """
-        Check if the request requires storlet execution
-
-        :return: Whether storlet should be executed
-        """
-        return 'X-Run-Storlet' in self.req.headers
-
-    @property
     def is_range_request(self):
         """
         Determines whether the request is a byte-range request
@@ -164,28 +133,16 @@ class BaseHandler(object):
         return 'Range' in self.req.headers
 
     @property
-    def is_storlet_range_request(self):
-        return 'X-Storlet-Range' in self.req.headers
-
-    @property
-    def is_storlet_multiple_range_request(self):
-        if not self.is_storlet_range_request:
-            return False
-
-        r = self.req.headers['X-Storlet-Range']
-        return len(Range(r).ranges) > 1
-
-    @property
-    def is_function_container_request(self):
+    def is_functions_container_request(self):
         """
         Determines whether the request is over any function container
         """
-        return self.container in self.function_containers
+        return self.container in self.functions_container
 
     @property
     def is_function_object_put(self):
-        return (self.container in self.function_containers and self.obj and
-                self.req.method == 'PUT')
+        return (self.container in self.functions_container and self.obj and
+                self.method == 'PUT')
 
     def is_slo_object(self, resp):
         """ Determines whether the requested object is an SLO object """
@@ -213,21 +170,31 @@ class BaseHandler(object):
         return 'X-Copy-From' in self.req.headers
 
     @property
-    def is_function_disabled(self):
-        if 'function-enabled' in self.req.headers:
-            return self.req.headers['function-enabled'] == 'False'
-        else:
-            return False
+    def is_function_enabled(self):
+        return self.req.headers['function-enabled'] == 'True'
+
+    @property
+    def is_function_set_to_container(self):
+        return not self.obj and self.method == 'POST'
+
+    @property
+    def is_head_request(self):
+        return self.method == 'HEAD'
 
     @property
     def is_valid_request(self):
         """
         Determines if is a valid request
         """
-        return not any([self.is_copy_request, self.is_slo_get_request,
-                        self.is_function_disabled, self.is_function_container_request,
-                        not ((not self.obj and self.req.method == 'HEAD') or
-                             (self.obj))])
+        mandatory = all([not self.is_copy_request,
+                         not self.is_slo_get_request,
+                         self.is_function_enabled,
+                         not self.is_functions_container_request])
+
+        optional = any([self.is_function_set_to_container,
+                        self.is_head_request])
+
+        return any([mandatory, optional])
 
     @property
     def is_middlebox_request(self):
@@ -282,11 +249,6 @@ class BaseHandler(object):
             if 'object_metadata' in f_data:
                 self.req.headers.update(f_data['object_metadata'])
 
-        elif f_data['command'] == 'RS':
-            slist = f_data['list']
-            self.logger.info('Go to execute Storlets: ' + str(slist))
-            self.apply_storlet_on_put(slist)
-
         elif f_data['command'] == 'RR':
             # Request Rewire to another object
             pass
@@ -335,12 +297,6 @@ class BaseHandler(object):
                 response.headers.update(f_data['response_headers'])
             return response
 
-        elif f_data['command'] == 'RS':
-            # Request Storlet: execute Storlet
-            slist = f_data['list']
-            self.logger.info('Go to execute Storlets: ' + str(slist))
-            return self.apply_storlet_on_get(response, slist)
-
         elif f_data['command'] == 'RR':
             # Request Rewire to another object
             pass
@@ -352,67 +308,18 @@ class BaseHandler(object):
             return Response(body=msg + '\n', headers={'etag': ''},
                             request=self.req)
 
-    def is_account_storlet_enabled(self):
-        account_meta = get_account_info(self.req.environ, self.app)['meta']
-        storlets_enabled = account_meta.get('storlet-enabled', 'False')
-        if not config_true_value(storlets_enabled):
-            self.logger.debug('Account disabled for storlets')
-            raise HTTPBadRequest('Error: Account disabled for'
-                                 ' storlets.\n', request=self.req)
-        return True
-
-    def apply_storlet_on_get(self, resp, storlet_list):
-        """
-        Call gateway module to get result of storlet execution
-        in GET flow
-        """
-        self._setup_storlet_gateway()
-        data_iter = resp.app_iter
-        response = self.storlet_gateway.run(resp, storlet_list, data_iter)
-
-        if 'Content-Length' in response.headers:
-            response.headers.pop('Content-Length')
-        if 'Transfer-Encoding' in response.headers:
-            response.headers.pop('Transfer-Encoding')
-        if 'Etag' in response.headers:
-            response.headers['Etag'] = ''
-
-        return response
-
-    def apply_storlet_on_put(self, req, storlet_list):
-        """
-        Call gateway module to get result of storlet execution
-        in PUT flow
-        """
-        self._setup_storlet_gateway()
-        data_iter = req.environ['wsgi.input']
-        self.req = self.storlet_gateway.run(req, storlet_list, data_iter)
-
-        if 'CONTENT_LENGTH' in self.req.environ:
-            self.req.environ.pop('CONTENT_LENGTH')
-        self.req.headers['Transfer-Encoding'] = 'chunked'
-
-    def apply_function_on_post_get(self, response):
+    def apply_function_on_get(self, response):
         """
         Call gateway module to get result of function execution
         in GET flow
         """
-        if self.obj.endswith('/'):
-            # it is a pseudo-folder
-            f_list = None
-        else:
-            f_list = get_function_list_object(response.headers, self.method)
-
-        if f_list:
-            self.logger.info('There are functions to execute: ' + str(f_list))
+        if self.function_data:
+            function_info = self.function_data['onget']
+            self.logger.info('There are functions to execute: ' +
+                             str(self.function_data))
             self._setup_docker_gateway(response)
-            f_data = self.docker_gateway.execute_function(f_list)
-            response = self._process_function_data_resp(response, f_data)
-
-            # Delete the function headers to no propagate the function execution
-            for header in response.headers.keys():
-                if header.startswith('X-Object-Sysmeta-Function'):
-                    del response.headers[header]
+            f_resp = self.docker_gateway.execute_function(function_info)
+            response = self._process_function_data_resp(response, f_resp)
 
         if 'Content-Length' not in response.headers:
             response.headers['Content-Length'] = None

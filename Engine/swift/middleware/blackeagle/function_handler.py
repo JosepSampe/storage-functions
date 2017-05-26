@@ -1,8 +1,8 @@
-from swift.common.swob import HTTPInternalServerError, HTTPException, wsgify
+from swift.common.swob import wsgify
 from swift.common.utils import get_logger
-from ConfigParser import RawConfigParser
 from blackeagle.handlers import ProxyHandler
 from blackeagle.handlers import ObjectHandler
+from blackeagle.handlers import ComputeHandler
 from blackeagle.handlers.base import NotFunctionRequest
 
 
@@ -22,39 +22,33 @@ class FunctionHandlerMiddleware(object):
         Generate Handler class based on execution_server parameter
 
         :param exec_server: Where this storlet_middleware is running.
-                            This should value shoud be 'proxy' or 'object'
+                            This should value should be 'proxy', 'object'
+                            or 'compute'
         :raise ValueError: If exec_server is invalid
         """
-        if exec_server == 'proxy' or exec_server == 'middlebox':
+        if exec_server == 'proxy':
             return ProxyHandler
         elif exec_server == 'object':
             return ObjectHandler
+        elif exec_server == 'compute':
+            return ComputeHandler
         else:
             raise ValueError('configuration error: execution_server must be '
-                             'either proxy, object or middlebox but is %s'
-                             % exec_server)
+                             'either proxy, object or compute but is %s' % exec_server)
 
     @wsgify
     def __call__(self, req):
         try:
             handler = self.handler_class(req, self.conf, self.app, self.logger)
-            self.logger.debug('Function handler %s call in %s/%s/%s' %
-                              (req.method, handler.account,
-                               handler.container, handler.obj))
-        except HTTPException:
-            raise
-        except NotFunctionRequest:
-            return req.get_response(self.app)
+            self.logger.debug('%s call in %s' % (req.method, req.path))
 
-        try:
             return handler.handle_request()
 
-        except HTTPException:
-            self.logger.exception('Middleware execution failed')
-            raise
-        except Exception:
-            self.logger.exception('Middleware execution failed')
-            raise HTTPInternalServerError(body='Middleware execution failed')
+        except NotFunctionRequest:
+            self.logger.debug('No Blackeagle Request, bypassing middleware')
+            return req.get_response(self.app)
+        except Exception as exception:
+            raise exception
 
 
 def filter_factory(global_conf, **local_conf):
@@ -67,17 +61,27 @@ def filter_factory(global_conf, **local_conf):
     conf['function_timeout'] = conf.get('function_timeout', 50)
     conf['function_pipe'] = conf.get('function_pipe', 'function_pipe')
     conf['docker_img_prefix'] = conf.get('docker_img_prefix', 'blackeagle')
-    conf['metadata_visibility'] = conf.get('metadata_visibility', True)
+    conf['function_visibility'] = conf.get('function_visibility', True)
     conf['main_dir'] = conf.get('main_dir', '/home/docker_device/blackeagle/scopes')
     conf['java_runtime_dir'] = conf.get('java_runtime_dir', 'runtime/java')
-    conf['python_runtime_dir'] = conf.get('python_runtime_dir', 'runtime/python')
+
     conf['cache_dir'] = conf.get('cache_dir', 'cache')
     conf['log_dir'] = conf.get('log_dir', 'logs')
     conf['pipes_dir'] = conf.get('pipes_dir', 'pipes')
+
     conf['docker_repo'] = conf.get('docker_repo', '192.168.2.1:5001')
-    conf['function_container'] = conf.get('function_container', 'function')
-    conf['function_dependency'] = conf.get('function_dependency', 'dependency') # DELETE
+    conf['functions_container'] = conf.get('functions_container', 'functions')
     conf['workers'] = conf.get('workers', 1)
+
+    conf['redis_host'] = conf.get('redis_host', 'localhost')
+    conf['redis_port'] = int(conf.get('redis_port', 6379))
+    conf['redis_db'] = int(conf.get('redis_db', 10))
+
+    conf['default_function_timeout'] = int(conf.get('default_function_timeout', 10))
+    conf['default_function_memory'] = int(conf.get('default_function_memory', 1024))
+    conf['max_function_memory'] = int(conf.get('max_function_memory', 1024))
+
+    conf['compute_nodes'] = conf.get('compute_nodes', '192.168.2.31:8080')
 
     def swift_functions(app):
         return FunctionHandlerMiddleware(app, conf)
