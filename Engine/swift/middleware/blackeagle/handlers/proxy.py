@@ -7,6 +7,7 @@ from swift.common.utils import public
 from swift.common.wsgi import make_subrequest
 import os
 import random
+import redis
 
 from swiftclient.client import http_connection, quote
 
@@ -20,6 +21,14 @@ class ProxyHandler(BaseHandler):
         self.functions_container = self.conf["functions_container"]
         self.compute_nodes = self.conf["compute_nodes"]
         self.req.headers['function-enabled'] = True
+
+        self.redis_host = conf.get('redis_host')
+        self.redis_port = conf.get('redis_port')
+        self.redis_db = conf.get('redis_db')
+
+        self.metadata_server = redis.StrictRedis(self.redis_host,
+                                                 self.redis_port,
+                                                 self.redis_db)
 
     def _parse_vaco(self):
         return self.req.split_path(3, 4, rest_with_last=True)
@@ -36,6 +45,7 @@ class ProxyHandler(BaseHandler):
 
         self.function_data.update(self.parent_function_list)
         self.function_data.update(self.function_list)
+        print self.function_data
 
     def handle_request(self):
         if hasattr(self, self.method) and self.is_valid_request:
@@ -83,8 +93,6 @@ class ProxyHandler(BaseHandler):
                                    ' doesn\'t exists in Swift.\n')
 
     def _get_function_set_data(self):
-        memory = self.conf.get('default_function_memory')
-        max_memory = self.conf.get('max_function_memory')
         params = dict()
         header = [i for i in self.available_set_headers
                   if i in self.req.headers.keys()]
@@ -93,22 +101,12 @@ class ProxyHandler(BaseHandler):
                                    'function at a time.\n')
 
         trigger = header[0].lower().replace('-manifest', '').rsplit('-', 1)[1]
-        function = self.req.headers[header[0]]+".tar"
-
-        if 'X-Function-Memory' in self.req.headers:
-            memory = int(self.req.headers['X-Function-Memory'])
-            if memory > max_memory:
-                memory = max_memory
+        function = self.req.headers[header[0]]+".tar.gz"
 
         if self.req.body:
             params = self.req.body
 
-        if 'X-Function-Timeout' in self.req.headers:
-            timeout = int(self.req.headers['X-Function-Timeout'])
-        else:
-            timeout = self.conf.get("default_function_timeout")
-
-        return trigger, function, memory, params, timeout
+        return trigger, function, params
 
     def _get_function_unset_data(self):
         header = [i for i in self.available_unset_headers
@@ -118,7 +116,7 @@ class ProxyHandler(BaseHandler):
                                    'function at a time.\n')
 
         trigger = header[0].lower().replace('-manifest', '').rsplit('-', 2)[1]
-        function = self.req.headers[header[0]]+".tar"
+        function = self.req.headers[header[0]]+".tar.gz"
 
         return trigger, function
 
@@ -126,18 +124,17 @@ class ProxyHandler(BaseHandler):
         """
         Sets the specified function to the trigger of an object or a container
         """
-        trigger, function, memory, params, timeout = self._get_function_set_data()
+        trigger, function, params = self._get_function_set_data()
         # Verify access to the function
         self._verify_access(self.functions_container, function)
         function_data = dict()
-        function_data[function] = {'params': params, 'memory': memory,
-                                   'timeout': timeout}
+        function_data[function] = params
         key = self.req.path
 
         self._verify_access(self.container, self.obj)
         self.metadata_server.hset(key, trigger, function_data)
 
-        msg = 'Function "' + function.replace('.tar', '') + '" correctly ' \
+        msg = 'Function "' + function.replace('.tar.gz', '') + '" correctly ' \
               'assigned to the "' + trigger + '" trigger.\n'
 
         return Response(body=msg, headers={'etag': ''}, request=self.req)
@@ -154,10 +151,10 @@ class ProxyHandler(BaseHandler):
             del function_data[trigger]
             if not function_data:
                 self.metadata_server.delete(key)
-            msg = 'Function "' + function.replace('.tar', '') + '" correctly '\
+            msg = 'Function "' + function.replace('.tar.gz', '') + '" correctly '\
                   ' removed from the "' + trigger + '" trigger.\n'
         else:
-            msg = 'Error: Function "' + function.replace('.tar', '') + '" not'\
+            msg = 'Error: Function "' + function.replace('.tar.gz', '') + '" not'\
                   ' assigned to the "' + trigger + '" trigger.\n'
 
         return Response(body=msg, headers={'etag': ''},
@@ -218,6 +215,7 @@ class ProxyHandler(BaseHandler):
         """
         PUT handler on Proxy
         """
+        # TODO: Validate function PUT
         if self.function_data:
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))

@@ -1,19 +1,5 @@
 echo 127.0.0.1  $HOSTNAME > /etc/hosts
-export CLASSPATH=/home/swift/:/home/swift/*:/home/swift/assync-http-client/*
-export LD_LIBRARY_PATH=/home/swift/
+export CLASSPATH=/opt/be/runtime/java/:/opt/be/runtime/java/*:/opt/be/runtime/java/lib/*:/opt/be/runtime/java/assync-http-client/*
+export LD_LIBRARY_PATH=/opt/be/runtime/java/lib/
 
-#wk=$1
-#if [ -z "$1" ]
-#  then
-#    wk=1 
-#fi
-#workers=$(($wk-1))
-#if (($workers > 0))
-#then
-#for i in $(eval echo "{1..$workers}")
-#do
-#/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/function_pipe_$i TRACE 1 $HOSTNAME &
-#done
-#fi
-#/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/function_pipe_0 TRACE 1 $HOSTNAME
-/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/function_pipe_$1 TRACE 4 $HOSTNAME
+/usr/bin/java com.urv.blackeagle.runtime.daemon.DockerDaemon /mnt/channels/docker_pipe_$1 TRACE 4 $HOSTNAME

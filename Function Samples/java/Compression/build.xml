@@ -21,7 +21,7 @@
 	<target name="pack" depends="compile">
 		<delete dir="bin" />
 		<mkdir dir="bin" />
-		<tar destfile = "bin/compression.tar">
+		<tar destfile = "bin/compression.tar.gz" compression="gzip">
 			<tarfileset dir="build">
 			        <include name="compression-1.0.jar"/>
 			</tarfileset>

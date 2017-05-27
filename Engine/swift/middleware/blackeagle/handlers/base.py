@@ -61,16 +61,6 @@ class BaseHandler(object):
                                         'X-Function-Onget-Manifest-Delete',
                                         'X-Function-Ondelete-Delete',
                                         'X-Function-Delete']
-        self.connect_metadata_server()
-
-    def connect_metadata_server(self):
-        self.redis_host = self.conf.get('redis_host')
-        self.redis_port = self.conf.get('redis_port')
-        self.redis_db = self.conf.get('redis_db')
-
-        self.metadata_server = redis.StrictRedis(self.redis_host,
-                                                 self.redis_port,
-                                                 self.redis_db)
 
     def _setup_docker_gateway(self, response=None):
         self.req.headers['X-Current-Server'] = self.execution_server
@@ -314,7 +304,7 @@ class BaseHandler(object):
         in GET flow
         """
         if self.function_data:
-            function_info = self.function_data['onget']
+            function_info = eval(self.function_data['onget'])
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
             self._setup_docker_gateway(response)

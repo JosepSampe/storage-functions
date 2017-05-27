@@ -5,9 +5,6 @@ import select
 import eventlet
 import json
 import os
-import subprocess
-import time
-import cmd
 import sys
 
 FUNCTION_FD_INPUT_OBJECT = 0
@@ -15,57 +12,23 @@ FUNCTION_FD_OUTPUT_OBJECT = 1
 FUNCTION_FD_OUTPUT_COMMAND = 2
 FUNCTION_FD_LOGGER = 4
 
-F_MAIN_HEADER = "X-Object-Meta-Function-Main"
-F_DEP_HEADER = "X-Object-Meta-Function-Library-Dependency"
 
 eventlet.monkey_patch()
 
 
-class Function(object):
-    """
-    Function main class.
-    """
+class Protocol(object):
 
-    def __init__(self, logger_path, name, main, dependencies):
-        self.log_path = os.path.join(logger_path, main)
-        self.log_name = name.replace('jar', 'log')
-        self.full_log_path = os.path.join(self.log_path, self.log_name)
-        self.function = name
-        self.main_class = main
-        self.dependencies = dependencies
-
-        if not os.path.exists(self.log_path):
-            os.makedirs(self.log_path)
-
-    def open(self):
-        self.logger_file = open(self.full_log_path, 'a')
-
-    def get_logfd(self):
-        return self.logger_file.fileno()
-
-    def get_name(self):
-        return self.function
-
-    def get_dependencies(self):
-        return self.dependencies
-
-    def get_main(self):
-        return self.main_class
-
-    def get_size(self):
-        statinfo = os.stat(self.full_path)
-        return statinfo.st_size
-
-    def close(self):
-        self.logger_file.close()
-
-
-class FunctionInvocationProtocol(object):
-
-    def __init__(self, input_stream, f_pipe_path, f_logger_path, req_headers,
-                 object_headers, f_list, f_metadata, timeout, logger):
-        self.input_stream = input_stream
+    def __init__(self, function, worker, object_stream, object_metadata,
+                 request_headers, function_parameters, logger):
+        self.function = function
+        self.worker = worker
+        self.object_stream = object_stream
+        self.object_metadata = object_metadata
+        self.request_headers = request_headers
+        self.function_parameters = function_parameters
         self.logger = logger
+
+
         self.f_pipe_path = f_pipe_path
         self.f_logger_path = f_logger_path
         self.timeout = timeout
@@ -272,7 +235,7 @@ class FunctionInvocationProtocol(object):
 
         return out_data
 
-    def communicate(self):
+    def invoke(self):
         for function_name in self.function_list:
             function = Function(self.f_logger_path,
                                 function_name,

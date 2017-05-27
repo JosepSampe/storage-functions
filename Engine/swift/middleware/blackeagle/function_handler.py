@@ -55,33 +55,30 @@ def filter_factory(global_conf, **local_conf):
     """Standard filter factory to use the middleware with paste.deploy"""
     conf = global_conf.copy()
     conf.update(local_conf)
-
-    conf['devices'] = conf.get('devices', '/srv/node')
+    # Common
     conf['execution_server'] = conf.get('execution_server')
-    conf['function_timeout'] = conf.get('function_timeout', 50)
-    conf['function_pipe'] = conf.get('function_pipe', 'function_pipe')
-    conf['docker_img_prefix'] = conf.get('docker_img_prefix', 'blackeagle')
+    conf['functions_container'] = conf.get('functions_container', 'functions')
     conf['function_visibility'] = conf.get('function_visibility', True)
-    conf['main_dir'] = conf.get('main_dir', '/home/docker_device/blackeagle/scopes')
+    # Paths
+    conf['main_dir'] = conf.get('main_dir', '/home/docker_device/blackeagle')
+    # Worker paths
+    conf['workers_dir'] = conf.get('workers_dir', 'workers')
     conf['java_runtime_dir'] = conf.get('java_runtime_dir', 'runtime/java')
-
+    # Function Paths
+    conf['functions_dir'] = conf.get('functions_dir', 'functions')
     conf['cache_dir'] = conf.get('cache_dir', 'cache')
     conf['log_dir'] = conf.get('log_dir', 'logs')
-    conf['pipes_dir'] = conf.get('pipes_dir', 'pipes')
-
-    conf['docker_repo'] = conf.get('docker_repo', '192.168.2.1:5001')
-    conf['functions_container'] = conf.get('functions_container', 'functions')
-    conf['workers'] = conf.get('workers', 1)
-
+    # Redis metastore
     conf['redis_host'] = conf.get('redis_host', 'localhost')
     conf['redis_port'] = int(conf.get('redis_port', 6379))
     conf['redis_db'] = int(conf.get('redis_db', 10))
-
+    # Function defaults
     conf['default_function_timeout'] = int(conf.get('default_function_timeout', 10))
     conf['default_function_memory'] = int(conf.get('default_function_memory', 1024))
     conf['max_function_memory'] = int(conf.get('max_function_memory', 1024))
-
+    # Compute Nodes
     conf['compute_nodes'] = conf.get('compute_nodes', '192.168.2.31:8080')
+    conf['docker_pool_dir'] = conf.get('docker_pool_dir', 'docker_pool')
 
     def swift_functions(app):
         return FunctionHandlerMiddleware(app, conf)

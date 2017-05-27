@@ -1,12 +1,12 @@
 <project>
-	
-	<target name="clean">
-		<delete dir="bin" />
-		<mkdir dir="bin" />
-	</target>
 
 	<target name="compile">
-		<javac srcdir="src/com/urv/blackeagle/function/noopdataiterator/" destdir="bin" includeantruntime="false">
+		<mkdir dir="build" />
+		<manifest file="build/MANIFEST.MF">
+		  <attribute name="Main-Class"
+		             value="com.urv.blackeagle.function.noopdataiterator.Handler" />
+		</manifest>
+		<javac srcdir="src/com/urv/blackeagle/function/noopdataiterator/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement 
 		        	path="../blackeagle-runtime-1.0.jar"/>
@@ -14,12 +14,27 @@
 					path="lib/json-simple-1.1.1.jar"/>
 			</classpath>		
 		</javac>
-	    <jar destfile="bin/noop-data-iterator-1.0.jar" 
-	        basedir="bin"
+	    <jar destfile="build/nop-data-iterator-1.0.jar"
+	    	manifest="build/MANIFEST.MF"
+	        basedir="build"
 	     	includes="com/urv/blackeagle/function/noopdataiterator/*">
 	    </jar>
 	</target>
 	
-	<target name="build" depends="clean, compile"/>
+	<target name="pack" depends="compile">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+		<tar destfile = "bin/nop.tar.gz" compression="gzip">
+			<tarfileset dir="build">
+			        <include name="nop-data-iterator-1.0.jar"/>
+			</tarfileset>
+			<tarfileset dir=".">
+			        <include name="lib/*.jar"/>
+			</tarfileset>
+		</tar>
+		<delete dir="build" />
+	</target>
+
+	<target name="build" depends="compile, pack"/>
 
 </project>

@@ -22,7 +22,7 @@
 	<target name="pack" depends="compile">
 		<delete dir="bin" />
 		<mkdir dir="bin" />
-		<tar destfile = "bin/access-limiter.tar">
+		<tar destfile = "bin/access-limiter.tar.gz" compression="gzip">
 			<tarfileset dir="build">
 			        <include name="access-limiter-1.0.jar"/>
 			</tarfileset>

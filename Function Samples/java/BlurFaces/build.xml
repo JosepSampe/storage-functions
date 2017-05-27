@@ -1,28 +1,41 @@
 <project>
-	
-	<target name="clean">
-		<delete dir="bin" />
-		<mkdir dir="bin" />
-		<copy todir="bin/com/urv/blackeagle/function/blurfaces/">
+	<target name="compile">
+		<mkdir dir="build" />
+		<copy todir="build/com/urv/blackeagle/function/blurfaces/">
 		       <fileset dir="src/resources" includes="**/*.xml"/>
 		</copy>
-	</target>
-
-	<target name="compile">
-		<javac srcdir="src/" destdir="bin" includeantruntime="false">
+		<manifest file="build/MANIFEST.MF">
+		  <attribute name="Main-Class"
+		             value="com.urv.blackeagle.function.blurfaces.Handler" />
+		</manifest>
+		<javac srcdir="src/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
-				<pathelement path="lib/json-simple-1.1.1.jar"/>
 				<pathelement path="lib/commons-io-2.5.jar"/>
 				<pathelement path="lib/opencv-320.jar"/>
 			</classpath>		
 		</javac>
-	    <jar destfile="bin/blurfaces-1.0.jar" 
-	        basedir="bin"
+	    <jar destfile="build/blurfaces-1.0.jar"
+	    	manifest="build/MANIFEST.MF"
+	        basedir="build"
 	     	includes="**/*.class,**/*.xml">
 	    </jar>
 	</target>
 	
-	<target name="build" depends="clean, compile"/>
+	<target name="pack" depends="compile">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+		<tar destfile = "bin/blurfaces.tar.gz" compression="gzip">
+			<tarfileset dir="build">
+			        <include name="blurfaces-1.0.jar"/>
+			</tarfileset>
+			<tarfileset dir=".">
+			        <include name="lib/*.jar"/>
+			</tarfileset>
+		</tar>
+		<delete dir="build" />
+	</target>
+	
+	<target name="build" depends="compile, pack"/>
 
 </project>
