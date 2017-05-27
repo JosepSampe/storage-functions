@@ -33,10 +33,10 @@ class ComputeHandler(BaseHandler):
         """
         GET handler on Proxy
         """
-        response = self.req.get_response(self.app)
-        response = self.apply_function_on_get(response)
+        self.response = self.req.get_response(self.app)
+        self.apply_function_on_get()
 
-        return response
+        return self.response
 
     @public
     def PUT(self):
@@ -44,6 +44,4 @@ class ComputeHandler(BaseHandler):
         PUT handler on Proxy
         """
         self.apply_function_on_put()
-        response = self.req.get_response(self.app)
-
-        return response
+        return self.req.get_response(self.app)

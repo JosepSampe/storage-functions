@@ -1,3 +1,6 @@
+from swift.common.wsgi import make_subrequest
+from blackeagle.common.utils import set_object_metadata, get_object_metadata
+import tarfile
 import os
 
 TIMEOUT_HEADER = "X-Object-Meta-Function-Timeout"
@@ -9,179 +12,136 @@ class Function(object):
     Function main class.
     """
 
-    def __init__(self, conf, scope, function):
-        self.conf = conf
+    def __init__(self, be, scope, function_obj_name):
+        self.be = be
+        self.req = be.req
+        self.conf = be.conf
         self.scope = scope
-        self.function_name = function.replace('.tar.gz', '')
-        self.function_object = function
-        
-        # Paths
-        self.scope_dir = os.path.join(conf["main_dir"], self.scope)
-        self.logger_path = os.path.join(self.scope_dir, conf["log_dir"])
-        self.workers_dir = conf["workers_dir"]
+        self.function_obj_name = function_obj_name
+        self.logger = be.logger
+        self.function_name = function_obj_name.replace('.tar.gz', '')
+        self.functions_container = self.conf['functions_container']
+        # Dirs
+        self.main_dir = self.conf["main_dir"]
+        self.functions_dir = self.conf["functions_dir"]
+        self.cache_dir = self.conf["cache_dir"]
+        self.log_dir = self.conf["log_dir"]
+        self.bin_dir = self.conf["bin_dir"]
 
-        self.main = ""
-        self.log_path = os.path.join(self.logger_path, main)
-        self.log_name = function_name.replace('tar.gz', 'log')
-        self.full_log_path = os.path.join(self.log_path, self.log_name)
-        self.function_name = function_name.replace('.tar.gz', '')
+        self._preparate_dirs()
+        self._load_function()
 
+    def _preparate_dirs(self):
+        """
+        Makes the required directories for managing the function.
+        """
+        self.logger.info('Preparing function directories')
+        functions_path = os.path.join(self.main_dir, self.functions_dir)
+        scope_path = os.path.join(functions_path, self.scope)
+        self.cache_path = os.path.join(scope_path, self.cache_dir)
+        self.log_path = os.path.join(scope_path, self.log_dir)
+        self.bin_path = os.path.join(scope_path, self.bin_dir)
+
+        if not os.path.exists(self.cache_path):
+            os.makedirs(self.cache_path)
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path)
 
-    def get_name(self):
-        return self.function_name
-
-    def _update_local_cache_from_swift(self, swift_container, obj_name):
+    def _load_function(self):
         """
-        Updates the local cache of functions and dependencies
-
-        :param swift_container: container name
-        :param obj_name: Name of the function or dependency
+        Loads the function.
         """
-        cache_target_path = os.path.join(self.scope_dir,
-                                         self.conf["cache_dir"],
-                                         swift_container)
-        cache_target_obj = os.path.join(cache_target_path, obj_name)
+        self.logger.info('Loading function: '+self.function_obj_name)
 
-        if not os.path.exists(cache_target_path):
-            os.makedirs(cache_target_path, 0o777)
+        self.cached_function_obj = os.path.join(self.cache_path, self.function_obj_name)
+        self.function_bin_path = os.path.join(self.bin_path, self.function_name)
 
-        resp = make_swift_request("GET", self.account,
-                                  swift_container, obj_name)
+        if not self._is_function_in_cache():
+            self._update_local_cache_from_swift()
+            self._extract_function()
 
-        with open(cache_target_obj, 'w') as fn:
+        self._load_function_execution_information()
+
+    def _is_function_in_cache(self):
+        """
+        Checks whether the function is in cache.
+
+        :returns : whether the object is available in cache.
+        """
+        in_cache = False
+        if os.path.isfile(self.cached_function_obj):
+            self.logger.info(self.function_obj_name + ' found in cache.')
+            in_cache = True
+        else:
+            self.logger.info(self.function_obj_name + ' not found in cache.')
+            in_cache = False
+
+        return in_cache
+
+    def _update_local_cache_from_swift(self):
+        """
+        Updates the local cache of functions.
+        """
+        f_container = self.functions_container
+        new_env = dict(self.be.req.environ)
+        swift_path = os.path.join('/', self.be.api_version, self.be.account,
+                                  f_container, self.function_obj_name)
+        sub_req = make_subrequest(new_env, 'GET', swift_path,
+                                  swift_source='function_middleware')
+        resp = sub_req.get_response(self.be.app)
+
+        with open(self.cached_function_obj, 'w') as fn:
             fn.write(resp.body)
 
-        set_object_metadata(cache_target_obj, resp.headers)
+        self.logger.info('Local cache updated: '+self.cached_function_obj)
 
-    def _is_avialable_in_cache(self, swift_container, obj_name):
+        self.function_metadata = resp.headers
+        set_object_metadata(self.cached_function_obj, resp.headers)
+
+    def _extract_function(self):
         """
-        checks whether the function or the dependency is in cache. If not,
-        brings it from swift.
-
-        :param swift_container: container name (function or dependency)
-        :param object_name: Name of the function or dependency
-        :returns : whether the object is available in cache
+        Untars the function to the bin directory.
         """
-        cached_target_obj = os.path.join(self.scope_dir,
-                                         self.conf["cache_dir"],
-                                         swift_container, obj_name)
-        self.logger.info('Checking in cache: ' + swift_container +
-                         '/' + obj_name)
+        tar = tarfile.open(self.cached_function_obj, "r:gz")
+        tar.extractall(path=self.function_bin_path)
+        tar.close()
 
-        if not os.path.isfile(cached_target_obj):
-            # If the objects is not in cache, brings it from Swift.
-            # raise NameError(swift_container+'/'+object_name + ' not found in cache.')
-            self.logger.info(swift_container + '/' + obj_name + ' not found in cache.')
-            self._update_local_cache_from_swift(swift_container, obj_name)
+    def _load_function_execution_information(self):
+        """
+        Loads the memory needed and the timeout of the function.
+        """
+        function_metadata = get_object_metadata(self.cached_function_obj)
+
+        if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in function_metadata:
+            raise ValueError("Error Getting Function memory and timeout values")
         else:
-            if not self.fast:
-                self._update_local_cache_from_swift(swift_container, obj_name)  # DELETE! (Only for test purposes)
-            self.logger.info(swift_container + '/' + obj_name + ' in cache.')
-
-        return True
-
-    def _update_from_cache(self, function_main, swift_container, obj_name):
-        """
-        Updates the tenant function folder from the local cache.
-
-        :param function_main: main class of the function
-        :param swift_container: container name (function or dependency)
-        :param obj_name: Name of the function or dependency
-        """
-        # if enter to this method means that the objects exist in cache
-        cached_target_obj = os.path.join(self.scope_dir,
-                                         self.conf["cache_dir"],
-                                         swift_container, obj_name)
-        docker_target_dir = os.path.join(self.scope_dir,
-                                         self.conf["java_runtime_dir"],
-                                         function_main)
-        docker_target_obj = os.path.join(docker_target_dir, obj_name)
-        update_from_cache = False
-
-        if not os.path.exists(docker_target_dir):
-            os.makedirs(docker_target_dir, 0o777)
-            update_from_cache = True
-        elif not os.path.isfile(docker_target_obj):
-            update_from_cache = True
-        else:
-            cached_obj_metadata = get_object_metadata(cached_target_obj)
-            docker_obj_metadata = get_object_metadata(docker_target_obj)
-
-            cached_obj_tstamp = float(cached_obj_metadata['X-Timestamp'])
-            docker_obj_tstamp = float(docker_obj_metadata['X-Timestamp'])
-
-            if cached_obj_tstamp > docker_obj_tstamp:
-                update_from_cache = True
-
-        if update_from_cache:
-            self.logger.info('Going to update from cache: ' +
-                             swift_container + '/' + obj_name)
-            copy2(cached_target_obj, docker_target_obj)
-            metadata = get_object_metadata(cached_target_obj)
-            set_object_metadata(docker_target_obj, metadata)
-
-    def _get_metadata(self, swift_container, obj_name):
-        """
-        Retrieves the swift metadata from the local cached object.
-
-        :param swift_container: container name (function or dependency)
-        :param obj_name: object name
-        :returns: swift metadata dictionary
-        """
-        cached_target_obj = os.path.join(self.scope_dir,
-                                         self.conf["cache_dir"],
-                                         swift_container, obj_name)
-        metadata = get_object_metadata(cached_target_obj)
-
-        return metadata
-
-    def _get_function_metadata(self, function_data):
-        """
-        Retrieves the function metadata from the list of functions.
-
-        :param function_list: function list
-        :returns: metadata dictionary
-        """
-        f_metadata = dict()
-
-        for f_name in function_list:
-            if self._is_avialable_in_cache(self.function_container, f_name):
-                f_metadata[f_name] = self._get_metadata(self.function_container,
-                                                        f_name)
-                f_main = f_metadata[f_name][MC_MAIN_HEADER]
-                self._update_from_cache(f_main, self.function_container, f_name)
-
-                if f_metadata[f_name][MC_DEP_HEADER]:
-                    dep_list = f_metadata[f_name][MC_DEP_HEADER].split(",")
-                    for dep_name in dep_list:
-                        if self._is_avialable_in_cache(self.dep_container,
-                                                       dep_name):
-                            self._update_from_cache(f_main,
-                                                    self.dep_container,
-                                                    dep_name)
-
-        return f_metadata
+            self.memory = int(function_metadata[MEMORY_HEADER])
+            self.timeout = int(function_metadata[TIMEOUT_HEADER])
 
     def open(self):
-        self.logger_file = open(self.full_log_path, 'a')
+        """
+        Opens the log file where the function will log.
+        """
+        f_log_path = os.path.join(self.log_path, self.function_name)
+        if not os.path.exists(f_log_path):
+            os.makedirs(f_log_path)
+        f_lof_file = os.path.join(f_log_path, self.function_name+'.log')
+        self.logger_file = open(f_lof_file, 'a')
+
+    def get_timeout(self):
+        return self.timeout
 
     def get_logfd(self):
         return self.logger_file.fileno()
 
     def get_name(self):
-        return self.function
+        return self.function_name
 
-    def get_dependencies(self):
-        return self.dependencies
-
-    def get_main(self):
-        return self.main_class
-
-    def get_size(self):
-        statinfo = os.stat(self.full_path)
-        return statinfo.st_size
+    def get_bin_path(self):
+        return self.function_bin_path
 
     def close(self):
+        """
+        Closes the log file.
+        """
         self.logger_file.close()

@@ -68,6 +68,7 @@ def filter_factory(global_conf, **local_conf):
     conf['functions_dir'] = conf.get('functions_dir', 'functions')
     conf['cache_dir'] = conf.get('cache_dir', 'cache')
     conf['log_dir'] = conf.get('log_dir', 'logs')
+    conf['bin_dir'] = conf.get('bin_dir', 'bin')
     # Redis metastore
     conf['redis_host'] = conf.get('redis_host', 'localhost')
     conf['redis_port'] = int(conf.get('redis_port', 6379))

@@ -5,7 +5,6 @@ import select
 import eventlet
 import json
 import os
-import sys
 
 FUNCTION_FD_INPUT_OBJECT = 0
 FUNCTION_FD_OUTPUT_OBJECT = 1
@@ -18,25 +17,15 @@ eventlet.monkey_patch()
 
 class Protocol(object):
 
-    def __init__(self, function, worker, object_stream, object_metadata,
-                 request_headers, function_parameters, logger):
-        self.function = function
+    def __init__(self, worker, object_stream, object_metadata,
+                 request_headers, function_parameters, be):
         self.worker = worker
         self.object_stream = object_stream
         self.object_metadata = object_metadata
         self.request_headers = request_headers
         self.function_parameters = function_parameters
-        self.logger = logger
-
-
-        self.f_pipe_path = f_pipe_path
-        self.f_logger_path = f_logger_path
-        self.timeout = timeout
-        self.req_md = req_headers
-        self.object_md = object_headers
-        self.function_list = f_list  # Ordered function execution list
-        self.f_md = f_metadata  # Function metadata
-        self.functions = list()  # Function object list
+        self.logger = be.logger
+        self.function_name = self.worker.function.get_name()
 
         # remote side file descriptors and their metadata lists
         # to be sent as part of invocation
@@ -55,21 +44,21 @@ class Protocol(object):
 
     def _add_input_object_stream(self):
         # Actual object from swift passed to function
-        if hasattr(self.input_stream, '_fp'):
-            self.input_data_read_fd = self.input_stream._fp.fileno()
+        if hasattr(self.object_stream, '_fp'):
+            self.input_data_read_fd = self.object_stream._fp.fileno()
         else:
             self.internal_pipe = True
             self.input_data_read_fd, self.input_data_write_fd = os.pipe()
 
         self.fds.append(self.input_data_read_fd)
 
-        if "X-Service-Catalog" in self.req_md:
-            del self.req_md['X-Service-Catalog']
+        if "X-Service-Catalog" in self.request_headers:
+            del self.request_headers['X-Service-Catalog']
 
-        if "Cookie" in self.req_md:
-            del self.req_md['Cookie']
+        if "Cookie" in self.request_headers:
+            del self.request_headers['Cookie']
 
-        headers = {'req_md': self.req_md, 'object_md': self.object_md}
+        headers = {'request_headers': self.request_headers, 'object_metadata': self.object_metadata}
 
         md = dict()
         md['type'] = FUNCTION_FD_INPUT_OBJECT
@@ -93,21 +82,20 @@ class Protocol(object):
         md['type'] = FUNCTION_FD_OUTPUT_COMMAND
         self.fdmd.append(md)
 
+    # TODO: Delete
     def _add_function_data(self):
-        for f in self.functions:
-            self.fds.append(f.get_logfd())
-            md = dict()
-            md['type'] = FUNCTION_FD_LOGGER
-            md['function'] = f.get_name()
-            md['main'] = f.get_main()
-            md['dependencies'] = f.get_dependencies()
-            self.fdmd.append(md)
+        self.fds.append(f.get_logfd())
+        md = dict()
+        md['type'] = FUNCTION_FD_LOGGER
+        md['function'] = f.get_name()
+        md['main'] = f.get_main()
+        md['dependencies'] = f.get_dependencies()
+        self.fdmd.append(md)
 
-    def _prepare_invocation_descriptors(self):
+    def _prepare_invocation_fds(self):
         self._add_input_object_stream()
         self._add_output_object_stream()
         self._add_output_command_stream()
-        self._add_function_data()
 
     def _close_local_side_descriptors(self):
         if self.output_data_read_fd:
@@ -129,13 +117,15 @@ class Protocol(object):
         # dtg.set_exec_params(prms)
         dtg.set_command(1)
 
-        # Send datagram to container daemon
-        rc = Bus.send(self.f_pipe_path, dtg)
+        # Send datagram to function worker
+        channel = self.worker.get_channel()
+        rc = Bus.send(channel, dtg)
         if (rc < 0):
             raise Exception("Failed to send execute command")
 
     def _wait_for_read_with_timeout(self, fd):
-        r, _, _ = select.select([fd], [], [], self.timeout)
+        function_timeout = self.worker.function.get_timeout()
+        r, _, _ = select.select([fd], [], [], function_timeout)
         if len(r) == 0:
             raise Timeout('Timeout while waiting for Function output')
         if fd in r:
@@ -170,83 +160,72 @@ class Protocol(object):
 
     def _read_response(self):
         f_resp = dict()
-        for f_name in self.function_list:
-            try:
-                self._wait_for_read_with_timeout(self.command_read_fd)
-                flat_json = os.read(self.command_read_fd, 12)
 
-                if flat_json:
-                    f_resp[f_name] = self.byteify(json.loads(flat_json))
-                else:
-                    raise ValueError('No response from function')
-            except:
-                # TODO: handle timeout or no response exception
-                e = sys.exc_info()[1]
-                f_resp[f_name] = dict()
-                f_resp[f_name]['cmd'] = 'RE'  # Request Error
-                f_resp[f_name]['message'] = ('Error running ' + f_name +
-                                             ': No response from function.')
+        try:
+            self._wait_for_read_with_timeout(self.command_read_fd)
+            flat_json = os.read(self.command_read_fd, 12)
+
+            if flat_json:
+                f_resp = self.byteify(json.loads(flat_json))
+            else:
+                raise ValueError('No response from function')
+        except:
+            # TODO: handle timeout or no response exception
+            # e = sys.exc_info()[1]
+            f_resp['cmd'] = 'RE'  # Request Error
+            f_resp['message'] = ('Error running ' + self.function_name +
+                                 ': No response from function.')
 
         # TODO: read extra data from pipe
         out_data = dict()
-        for f_name in self.function_list:
-            command = f_resp[f_name]['cmd']
+        command = f_resp['cmd']
 
-            if command == 'DR':
-                # Data Read
-                self._send_data_to_function()
-                out_data = self._read_response()
-                break
-            if command == 'DW':
-                # Data Write
-                out_data['command'] = command
-                out_data['fd'] = self.output_data_read_fd
-            if command == 'RE':
-                # Request Error
-                out_data['command'] = command
-                out_data['message'] = f_resp[f_name]['message']
-                break
-            if command == 'RR':
-                # Request Rewire
-                out_data['command'] = command
-                out_data['object_id'] = f_resp[f_name]['object_id']
-                break
-            if command == 'RS':
-                # Request Storlet
-                out_data['command'] = command
-                if 'list' not in out_data:
-                    out_data['list'] = dict()
-                for k in sorted(f_resp[f_name]['list']):
-                    new_key = len(out_data['list'])
-                    out_data['list'][new_key] = f_resp[f_name]['list'][k]
-                break
-            if command == 'RC':
-                out_data['command'] = command
+        if command == 'DR':
+            # Data Read
+            self._send_data_to_function()
+            out_data = self._read_response()
 
-            if 'object_metadata' in f_resp[f_name]:
-                out_data['object_metadata'] = f_resp[f_name]['object_metadata']
-            if 'request_headers' in f_resp[f_name]:
-                out_data['request_headers'] = f_resp[f_name]['request_headers']
-            if 'response_headers' in f_resp[f_name]:
-                out_data['response_headers'] = f_resp[f_name]['response_headers']
+        if command == 'DW':
+            # Data Write
+            out_data['command'] = command
+            out_data['fd'] = self.output_data_read_fd
+
+        if command == 'RE':
+            # Request Error
+            out_data['command'] = command
+            out_data['message'] = f_resp['message']
+
+        if command == 'RR':
+            # Request Rewire
+            out_data['command'] = command
+            out_data['object_id'] = f_resp['object_id']
+
+        if command == 'RS':
+            # Request Storlet
+            out_data['command'] = command
+            if 'list' not in out_data:
+                out_data['list'] = dict()
+            for k in sorted(f_resp['list']):
+                new_key = len(out_data['list'])
+                out_data['list'][new_key] = f_resp['list'][k]
+
+        if command == 'RC':
+            out_data['command'] = command
+
+        if 'object_metadata' in f_resp:
+            out_data['object_metadata'] = f_resp['object_metadata']
+        if 'request_headers' in f_resp:
+            out_data['request_headers'] = f_resp['request_headers']
+        if 'response_headers' in f_resp:
+            out_data['response_headers'] = f_resp['response_headers']
 
         if out_data['command'] != 'DW':
             self._close_local_side_descriptors()
 
         return out_data
 
-    def invoke(self):
-        for function_name in self.function_list:
-            function = Function(self.f_logger_path,
-                                function_name,
-                                self.f_md[function_name][F_MAIN_HEADER],
-                                self.f_md[function_name][F_DEP_HEADER])
-            self.functions.append(function)
-
-        for function in self.functions:
-            function.open()
-
-        self._prepare_invocation_descriptors()
+    def comunicate(self):
+        self._prepare_invocation_fds()
 
         try:
             self._invoke()

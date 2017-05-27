@@ -7,16 +7,17 @@ import os
 
 class DockerGateway():
 
-    def __init__(self, request, response, conf, logger, account):
-        self.req = request
-        self.response = response
-        self.conf = conf
-        self.logger = logger
-        self.account = account
+    def __init__(self, be):
+        self.be = be
+        self.req = be.req
+        self.resp = be.response
+        self.conf = be.conf
+        self.logger = be.logger
+        self.account = be.account
         self.method = self.req.method.lower()
-        self.scope = account[5:18]
-        self.functions_container = conf["functions_container"]
-        self.execution_server = conf["execution_server"]
+        self.scope = self.account[5:18]
+        self.functions_container = self.conf["functions_container"]
+        self.execution_server = self.conf["execution_server"]
 
         self._connect_redis()
 
@@ -37,14 +38,14 @@ class DockerGateway():
 
     def _get_object_stream(self):
         if self.method == 'get':
-            return self.response.app_iter
+            return self.resp.app_iter
         if self.method == 'put':
             return self.req.environ['wsgi.input']
 
     def _get_object_metadata(self):
         headers = dict()
         if self.method == "get":
-            headers = self.response.headers
+            headers = self.resp.headers
         elif self.method == "put":
             if 'Content-Length' in self.req.headers:
                 headers['Content-Length'] = self.req.headers['Content-Length']
@@ -70,22 +71,15 @@ class DockerGateway():
         f_name = function_info.keys()[0]
         function_parameters = function_info[f_name]
 
-        # 2nd. Create function Instance
-        function = Function(self.conf, self.scope, f_name)
-
-        # 3rd. Get already started worker or create it
-        worker = self._get_worker()
+        worker = self._get_worker(f_name)
         if not worker:
-            worker = Worker(self.conf, self.scope, self.redis, function)
+            function = Function(self.be, self.scope, f_name)
+            worker = Worker(self.be, self.scope, self.redis, function)
 
-        """
-        # 3rd. Create function communication protocol
-        protocol = Protocol(function, worker, object_stream,
-                            object_metadata, request_headers,
-                            function_parameters, self.logger)
+        protocol = Protocol(worker, object_stream, object_metadata,
+                            request_headers, function_parameters, self.be)
 
-        return protocol.comunicate()
-        """
+        #return protocol.comunicate()
 
         function_response = dict()
         function_response['command'] = 'RC'

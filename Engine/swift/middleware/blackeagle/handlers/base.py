@@ -70,9 +70,8 @@ class BaseHandler(object):
         self.req.headers['X-Project-Id'] = self.account.replace('AUTH_', '')
         self.req.headers['X-Container'] = self.container
         self.req.headers['X-Object'] = self.obj
-        self.docker_gateway = DockerGateway(self.req, response,
-                                            self.conf, self.logger,
-                                            self.account)
+
+        self.docker_gateway = DockerGateway(self)
 
     def _extract_vaco(self):
         """
@@ -257,35 +256,32 @@ class BaseHandler(object):
 
         return response
 
-    def _process_function_data_resp(self, response, f_data):
+    def _process_function_data_resp(self, f_data):
         """
         Processes the data returned from the function
         """
         if f_data['command'] == 'DW':
             # Data Write from function
             new_fd = f_data['fd']
-            response.app_iter = DataFdIter(new_fd)
+            self.response.app_iter = DataFdIter(new_fd)
             if 'object_metadata' in f_data:
-                response.headers.update(f_data['object_metadata'])
+                self.response.headers.update(f_data['object_metadata'])
             if 'response_headers' in f_data:
-                response.headers.update(f_data['response_headers'])
+                self.response.headers.update(f_data['response_headers'])
 
-            if 'Content-Length' in response.headers:
-                response.headers.pop('Content-Length')
-            if 'Transfer-Encoding' in response.headers:
-                response.headers.pop('Transfer-Encoding')
-            if 'Etag' in response.headers:
-                response.headers['Etag'] = ''
-
-            return response
+            if 'Content-Length' in self.response.headers:
+                self.response.headers.pop('Content-Length')
+            if 'Transfer-Encoding' in self.response.headers:
+                self.response.headers.pop('Transfer-Encoding')
+            if 'Etag' in self.response.headers:
+                self.response.headers['Etag'] = ''
 
         elif f_data['command'] == 'RC':
             # Request Continue: normal req. execution
             if 'object_metadata' in f_data:
-                response.headers.update(f_data['object_metadata'])
+                self.response.headers.update(f_data['object_metadata'])
             if 'response_headers' in f_data:
-                response.headers.update(f_data['response_headers'])
-            return response
+                self.response.headers.update(f_data['response_headers'])
 
         elif f_data['command'] == 'RR':
             # Request Rewire to another object
@@ -295,10 +291,10 @@ class BaseHandler(object):
         elif f_data['command'] == 'RE':
             # Request Error
             msg = f_data['message']
-            return Response(body=msg + '\n', headers={'etag': ''},
-                            request=self.req)
+            self.response = Response(body=msg + '\n', headers={'etag': ''},
+                                     request=self.req)
 
-    def apply_function_on_get(self, response):
+    def apply_function_on_get(self):
         """
         Call gateway module to get result of function execution
         in GET flow
@@ -307,13 +303,11 @@ class BaseHandler(object):
             function_info = eval(self.function_data['onget'])
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
-            self._setup_docker_gateway(response)
+            self._setup_docker_gateway()
             f_resp = self.docker_gateway.execute_function(function_info)
-            response = self._process_function_data_resp(response, f_resp)
+            self._process_function_data_resp(f_resp)
 
-        if 'Content-Length' not in response.headers:
-            response.headers['Content-Length'] = None
-            if 'Transfer-Encoding' in response.headers:
-                response.headers.pop('Transfer-Encoding')
-
-        return response
+        if 'Content-Length' not in self.response.headers:
+            self.response.headers['Content-Length'] = None
+            if 'Transfer-Encoding' in self.response.headers:
+                self.response.headers.pop('Transfer-Encoding')
