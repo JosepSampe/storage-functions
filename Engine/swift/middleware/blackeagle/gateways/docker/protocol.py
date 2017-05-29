@@ -5,12 +5,11 @@ import select
 import eventlet
 import json
 import os
+import sys
 
 FUNCTION_FD_INPUT_OBJECT = 0
 FUNCTION_FD_OUTPUT_OBJECT = 1
 FUNCTION_FD_OUTPUT_COMMAND = 2
-FUNCTION_FD_LOGGER = 4
-
 
 eventlet.monkey_patch()
 
@@ -24,6 +23,7 @@ class Protocol(object):
         self.object_metadata = object_metadata
         self.request_headers = request_headers
         self.function_parameters = function_parameters
+        self.function_timeout = self.worker.function.get_timeout()
         self.logger = be.logger
         self.function_name = self.worker.function.get_name()
 
@@ -42,29 +42,6 @@ class Protocol(object):
         self.input_data_write_fd = None  # Data from the object - local
         self.internal_pipe = False
 
-    def _add_input_object_stream(self):
-        # Actual object from swift passed to function
-        if hasattr(self.object_stream, '_fp'):
-            self.input_data_read_fd = self.object_stream._fp.fileno()
-        else:
-            self.internal_pipe = True
-            self.input_data_read_fd, self.input_data_write_fd = os.pipe()
-
-        self.fds.append(self.input_data_read_fd)
-
-        if "X-Service-Catalog" in self.request_headers:
-            del self.request_headers['X-Service-Catalog']
-
-        if "Cookie" in self.request_headers:
-            del self.request_headers['Cookie']
-
-        headers = {'request_headers': self.request_headers, 'object_metadata': self.object_metadata}
-
-        md = dict()
-        md['type'] = FUNCTION_FD_INPUT_OBJECT
-        md['json_md'] = json.dumps(headers)
-        self.fdmd.append(md)
-
     def _add_output_object_stream(self):
         self.output_data_read_fd, self.output_data_write_fd = os.pipe()
         self.fds.append(self.output_data_write_fd)
@@ -82,20 +59,35 @@ class Protocol(object):
         md['type'] = FUNCTION_FD_OUTPUT_COMMAND
         self.fdmd.append(md)
 
-    # TODO: Delete
-    def _add_function_data(self):
-        self.fds.append(f.get_logfd())
+    def _add_input_object_stream(self):
+        # Actual object from swift passed to function
+        if hasattr(self.object_stream, '_fp'):
+            self.input_data_read_fd = self.object_stream._fp.fileno()
+        else:
+            self.internal_pipe = True
+            self.input_data_read_fd, self.input_data_write_fd = os.pipe()
+
+        self.fds.append(self.input_data_read_fd)
+
+        if "X-Service-Catalog" in self.request_headers:
+            del self.request_headers['X-Service-Catalog']
+
+        if "Cookie" in self.request_headers:
+            del self.request_headers['Cookie']
+
+        metadata = {'request_headers': self.request_headers,
+                    'object_metadata': self.object_metadata,
+                    'parameters': self.function_parameters}
+
         md = dict()
-        md['type'] = FUNCTION_FD_LOGGER
-        md['function'] = f.get_name()
-        md['main'] = f.get_main()
-        md['dependencies'] = f.get_dependencies()
+        md['type'] = FUNCTION_FD_INPUT_OBJECT
+        md['data'] = json.dumps(metadata)
         self.fdmd.append(md)
 
     def _prepare_invocation_fds(self):
-        self._add_input_object_stream()
         self._add_output_object_stream()
         self._add_output_command_stream()
+        self._add_input_object_stream()
 
     def _close_local_side_descriptors(self):
         if self.output_data_read_fd:
@@ -114,18 +106,15 @@ class Protocol(object):
         dtg = Datagram()
         dtg.set_files(self.fds)
         dtg.set_metadata(self.fdmd)
-        # dtg.set_exec_params(prms)
         dtg.set_command(1)
-
         # Send datagram to function worker
         channel = self.worker.get_channel()
         rc = Bus.send(channel, dtg)
         if (rc < 0):
-            raise Exception("Failed to send execute command")
+            raise Exception("Failed to send data to function")
 
     def _wait_for_read_with_timeout(self, fd):
-        function_timeout = self.worker.function.get_timeout()
-        r, _, _ = select.select([fd], [], [], function_timeout)
+        r, _, _ = select.select([fd], [], [], self.function_timeout)
         if len(r) == 0:
             raise Timeout('Timeout while waiting for Function output')
         if fd in r:
@@ -135,24 +124,24 @@ class Protocol(object):
         if self.internal_pipe:
             eventlet.spawn_n(self._write_input_data,
                              self.input_data_write_fd,
-                             self.input_stream)
+                             self.object_stream)
 
     def _write_input_data(self, w_fd, data_iter):
         try:
             writer = os.fdopen(w_fd, 'w')
             for chunk in data_iter:
-                with Timeout(self.timeout):
+                with Timeout(self.function_timeout):
                     writer.write(chunk)
             writer.close()
         except Exception:
             self.logger.exception('Unexpected error at writing input data')
 
-    def byteify(self, data):
+    def _byteify(self, data):
         if isinstance(data, dict):
-            return {self.byteify(key): self.byteify(value)
+            return {self._byteify(key): self._byteify(value)
                     for key, value in data.iteritems()}
         elif isinstance(data, list):
-            return [self.byteify(element) for element in data]
+            return [self._byteify(element) for element in data]
         elif isinstance(data, unicode):
             return data.encode('utf-8')
         else:
@@ -166,15 +155,15 @@ class Protocol(object):
             flat_json = os.read(self.command_read_fd, 12)
 
             if flat_json:
-                f_resp = self.byteify(json.loads(flat_json))
+                f_resp = self._byteify(json.loads(flat_json))
             else:
                 raise ValueError('No response from function')
         except:
             # TODO: handle timeout or no response exception
-            # e = sys.exc_info()[1]
+            e = sys.exc_info()[1]
             f_resp['cmd'] = 'RE'  # Request Error
             f_resp['message'] = ('Error running ' + self.function_name +
-                                 ': No response from function.')
+                                 ' function: ' + str(e))
 
         # TODO: read extra data from pipe
         out_data = dict()
@@ -200,16 +189,8 @@ class Protocol(object):
             out_data['command'] = command
             out_data['object_id'] = f_resp['object_id']
 
-        if command == 'RS':
-            # Request Storlet
-            out_data['command'] = command
-            if 'list' not in out_data:
-                out_data['list'] = dict()
-            for k in sorted(f_resp['list']):
-                new_key = len(out_data['list'])
-                out_data['list'][new_key] = f_resp['list'][k]
-
         if command == 'RC':
+            # Request Continue
             out_data['command'] = command
 
         if 'object_metadata' in f_resp:
@@ -233,8 +214,6 @@ class Protocol(object):
             raise e
         finally:
             self._close_remote_side_descriptors()
-            for function in self.functions:
-                function.close()
 
         out_data = self._read_response()
         os.close(self.command_read_fd)

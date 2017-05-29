@@ -7,9 +7,6 @@ SBUS_CMD_NOP = 9
 
 
 class Datagram(object):
-    '''@summary: This class aggregates data to be transferred
-              using SBus functionality.
-    '''
 
     command_dict_key_name_ = 'command'
     task_id_dict_key_name_ = 'taskId'

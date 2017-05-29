@@ -16,6 +16,7 @@ public class Request {
 	private Response response;
 	private Logger logger_;
 	public Headers headers;
+	public boolean command_sent = false;
 
 	public Request(FileDescriptor commandFd, Map<String, String> requestHeaders, Response resp, Logger logger) {
 		command = new FileOutputStream(commandFd);
@@ -32,17 +33,22 @@ public class Request {
 	
 	@SuppressWarnings("unchecked")
 	public void forward(){
-		logger_.trace("Sending command: CONTINUE");
-		outMetadata.put("cmd","RC");
-		// TODO: is it necessary to offload object metadata here?
-		if (object.metadata.isModified())
-			outMetadata.put("object_metadata", object.metadata.getAll());
-		if (response.headers.isModified())
-			outMetadata.put("response_headers",response.headers.getAll());
-		if (this.headers.isModified())
-			outMetadata.put("request_headers", headers);
-		
-		this.sendCommand();
+		if (!this.command_sent){
+			this.command_sent = true;
+			logger_.info("Sending command: CONTINUE");
+			outMetadata.put("cmd","RC");
+			this.sendDataToSwift();
+	
+			outMetadata.clear();
+			// TODO: is it necessary to offload object metadata here?
+			if (object.metadata.isModified())
+				outMetadata.put("object_metadata", object.metadata.getAll());
+			if (response.headers.isModified())
+				outMetadata.put("response_headers",response.headers.getAll());
+			if (this.headers.isModified())
+				outMetadata.put("request_headers", headers);
+			this.sendDataToSwift();
+		}
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -50,7 +56,7 @@ public class Request {
 		logger_.trace("Sending command: CANCEL");
 		outMetadata.put("cmd", "RE");
 		outMetadata.put("message", message);
-		this.sendCommand();
+		this.sendDataToSwift();
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -58,10 +64,10 @@ public class Request {
 		logger_.trace("Sending command: REWIRE");
 		outMetadata.put("cmd", "RR");
 		outMetadata.put("object_id", object_id);
-		this.sendCommand();
+		this.sendDataToSwift();
 	}
 	
-	private void sendCommand() {
+	private void sendDataToSwift() {
 		try {
 			command.write(outMetadata.toString().getBytes());
 			command.flush();

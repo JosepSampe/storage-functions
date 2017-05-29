@@ -45,7 +45,6 @@ class ProxyHandler(BaseHandler):
 
         self.function_data.update(self.parent_function_list)
         self.function_data.update(self.function_list)
-        print self.function_data
 
     def handle_request(self):
         if hasattr(self, self.method) and self.is_valid_request:

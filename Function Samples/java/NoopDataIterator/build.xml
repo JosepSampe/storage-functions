@@ -2,10 +2,6 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<manifest file="build/MANIFEST.MF">
-		  <attribute name="Main-Class"
-		             value="com.urv.blackeagle.function.noopdataiterator.Handler" />
-		</manifest>
 		<javac srcdir="src/com/urv/blackeagle/function/noopdataiterator/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement 
@@ -15,7 +11,6 @@
 			</classpath>		
 		</javac>
 	    <jar destfile="build/nop-data-iterator-1.0.jar"
-	    	manifest="build/MANIFEST.MF"
 	        basedir="build"
 	     	includes="com/urv/blackeagle/function/noopdataiterator/*">
 	    </jar>

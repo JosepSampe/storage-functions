@@ -12,7 +12,11 @@ public class Handler implements IFunction {
 	 */
 	public void invoke(Context ctx, Api api) {
 		
+		ctx.log.emit("Init access-limiter Function");
+		
 		String max_reads = ctx.function.parameters.get("max_reads");
+		
+		ctx.log.emit("Max Reads: "+max_reads);
 		
 		java.util.Date date = new java.util.Date();
 		SimpleDateFormat formater = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zz");
@@ -26,5 +30,7 @@ public class Handler implements IFunction {
 		} else {
 			ctx.request.forward();
 		}
+		
+		ctx.log.emit("Ended access-limiter Function");
 	}	
 }

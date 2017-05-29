@@ -1,14 +1,16 @@
 package com.urv.blackeagle.runtime.daemon;
 
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
-
-import org.opencv.core.Core;
 import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Level;
 import com.ibm.storlet.sbus.*;
+import com.urv.blackeagle.runtime.function.Function;
 import com.urv.blackeagle.runtime.function.FunctionExecutionTask;
+import java.util.HashMap;
 
-import java.util.concurrent.*;
+
 
 /*----------------------------------------------------------------------------
  * DockerDaemon - Java Runtime
@@ -18,9 +20,8 @@ public class DockerDaemon {
 
 	private static ch.qos.logback.classic.Logger logger_;
 	private static SBus bus_;
-	private static ExecutorService threadPool_;
-	private static int nDefaultTimeoutToWaitBeforeShutdown_ = 3;
-	private static char id;
+	private static Function function_ = null;
+	private static FileOutputStream functionLog_;
 
 	/*------------------------------------------------------------------------
 	 * initLog
@@ -29,7 +30,7 @@ public class DockerDaemon {
 		Level newLevel = Level.toLevel(strLogLevel);
 		boolean bStatus = true;
 		try {
-			logger_ = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("DockerDaemon "+id);
+			logger_ = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("DockerDaemon");
 			logger_.setLevel(newLevel);
 			logger_.info("Logger Started");
 		} catch (Exception e) {
@@ -45,13 +46,11 @@ public class DockerDaemon {
 	 * Entry point.
 	 * args[1] - path to Bus
 	 * args[2] - log level
-	 * args[3] - thread pool size
 	 * 
 	 * */
 	public static void main(String[] args) throws Exception {
 		initialize(args);
 		mainLoop();
-		exit();
 	}
 
 	/*------------------------------------------------------------------------
@@ -62,12 +61,9 @@ public class DockerDaemon {
 	private static void initialize(String[] args) throws Exception {
 		String strBusPath = args[0];
 		String strLogLevel = args[1];
-		int nPoolSize = Integer.parseInt(args[2]);
 		String strContId = args[3];
 		
 		System.out.println("Initializing Docker Daemon");
-		
-		id = strBusPath.charAt(strBusPath.length() - 1);
 		
 		if (initLog(strLogLevel) == false)
 			return;
@@ -86,9 +82,6 @@ public class DockerDaemon {
 			logger_.error("Failed to create Swift and API Bus");
 			return;
 		}
-		logger_.trace("Initialising thread pool with " + nPoolSize + " threads");
-		System.out.println("Initialising thread pool with " + nPoolSize + " threads");
-		threadPool_ = Executors.newFixedThreadPool(nPoolSize);
 	}
 
 	/*------------------------------------------------------------------------
@@ -122,26 +115,45 @@ public class DockerDaemon {
 
 			}
 			
-			logger_.trace("Going to create the task");
-			FunctionExecutionTask functionTask = new FunctionExecutionTask(dtg, logger_);
-			threadPool_.execute(functionTask);
+			logger_.trace("Going to process recived datagram");
+			processDatagram(dtg);
 		}
 	}
-
+	
 	/*------------------------------------------------------------------------
-	 * exit
+	 * processDatagram
 	 * 
-	 * Release the resources and quit
+	 * Process the recived datagram
 	 * */
-	private static void exit() {
-		logger_.info("Daemon is going down...shutting down threadpool");
-		try {
-			threadPool_.awaitTermination(nDefaultTimeoutToWaitBeforeShutdown_,
-					TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+	private static void processDatagram(SBusDatagram dtg){
+		int command = dtg.getNFiles();
+
+		/*
+		 *  Start Function
+		 */
+		if (command == 1){
+			if (function_ == null){
+				logger_.trace("Got Function startup command");
+				String functionName, mainClass;
+				HashMap<String, String>[] metadata = dtg.getFilesMetadata();
+				FileDescriptor logFd  = null;
+				
+				logFd = dtg.getFiles()[0];
+				functionLog_ = new FileOutputStream(logFd);
+				functionName = metadata[0].get("function");
+				mainClass = metadata[0].get("main_class");
+				logger_.trace("Got "+functionName+" Function");
+				function_ = new Function(functionName, mainClass, logger_);
+			}
 		}
-		threadPool_.shutdown();
-		logger_.info("threadpool down");
+		
+		/*
+		 * Process Request
+		 */
+		if (command == 3){
+			logger_.trace("Got Function invocation request");
+			FunctionExecutionTask functionTask = new FunctionExecutionTask(dtg, function_, functionLog_, logger_);
+			new Thread(functionTask).start(); 	
+		}
 	}
 }

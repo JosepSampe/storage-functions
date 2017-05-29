@@ -10,16 +10,19 @@ public class Api {
 	public Swift swift;
 
 
-	public Api(Map<String, String> reqMd, Logger localLog) 
+	public Api(Map<String, String> request_headers, Logger localLog) 
 	{	
-		String projectId = reqMd.get("X-Project-Id");
+		String projectId = request_headers.get("X-Project-Id");
 		String token = null;
-		if (reqMd.containsKey("X-Auth-Token"))
-			token = reqMd.get("X-Auth-Token");
+		if (request_headers.containsKey("X-Auth-Token"))
+			token = request_headers.get("X-Auth-Token");
 		
 		logger_ = localLog;
 		swift = new Swift(token, projectId, logger_);
-		logger_.trace("Full API created");
+		logger_.info("Full API created");
 	}
 	
+	public void close(){
+		swift.close();
+	}
 }

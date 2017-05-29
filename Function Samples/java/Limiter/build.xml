@@ -2,17 +2,12 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<manifest file="build/MANIFEST.MF">
-		  <attribute name="Main-Class"
-		             value="com.urv.vertigo.blackeagle.limiter.Handler" />
-		</manifest>
 		<javac srcdir="src/com/urv/blackeagle/function/limiter/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="build/access-limiter-1.0.jar"
-	     	  manifest="build/MANIFEST.MF"
 	          basedir="build"
 	     	  includes="com/urv/blackeagle/function/limiter/*">
 	    </jar>

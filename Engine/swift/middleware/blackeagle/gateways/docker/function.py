@@ -5,6 +5,7 @@ import os
 
 TIMEOUT_HEADER = "X-Object-Meta-Function-Timeout"
 MEMORY_HEADER = "X-Object-Meta-Function-Memory"
+MAIN_HEADER = "X-Object-Meta-Function-Main"
 
 
 class Function(object):
@@ -112,24 +113,32 @@ class Function(object):
         """
         function_metadata = get_object_metadata(self.cached_function_obj)
 
-        if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in function_metadata:
+        if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in \
+           function_metadata or MAIN_HEADER not in function_metadata:
             raise ValueError("Error Getting Function memory and timeout values")
         else:
             self.memory = int(function_metadata[MEMORY_HEADER])
             self.timeout = int(function_metadata[TIMEOUT_HEADER])
+            self.main_class = function_metadata[MAIN_HEADER]
 
-    def open(self):
+    def open_log(self):
         """
         Opens the log file where the function will log.
         """
         f_log_path = os.path.join(self.log_path, self.function_name)
         if not os.path.exists(f_log_path):
             os.makedirs(f_log_path)
-        f_lof_file = os.path.join(f_log_path, self.function_name+'.log')
-        self.logger_file = open(f_lof_file, 'a')
+        f_log_file = os.path.join(f_log_path, self.function_name+'.log')
+        self.logger_file = open(f_log_file, 'a')
 
     def get_timeout(self):
         return self.timeout
+
+    def get_main_class(self):
+        return self.main_class
+
+    def get_memory(self):
+        return self.memory
 
     def get_logfd(self):
         return self.logger_file.fileno()
@@ -137,10 +146,13 @@ class Function(object):
     def get_name(self):
         return self.function_name
 
+    def get_obj_name(self):
+        return self.function_obj_name
+
     def get_bin_path(self):
         return self.function_bin_path
 
-    def close(self):
+    def close_log(self):
         """
         Closes the log file.
         """

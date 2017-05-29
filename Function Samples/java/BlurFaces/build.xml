@@ -4,10 +4,6 @@
 		<copy todir="build/com/urv/blackeagle/function/blurfaces/">
 		       <fileset dir="src/resources" includes="**/*.xml"/>
 		</copy>
-		<manifest file="build/MANIFEST.MF">
-		  <attribute name="Main-Class"
-		             value="com.urv.blackeagle.function.blurfaces.Handler" />
-		</manifest>
 		<javac srcdir="src/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
@@ -16,7 +12,6 @@
 			</classpath>		
 		</javac>
 	    <jar destfile="build/blurfaces-1.0.jar"
-	    	manifest="build/MANIFEST.MF"
 	        basedir="build"
 	     	includes="**/*.class,**/*.xml">
 	    </jar>

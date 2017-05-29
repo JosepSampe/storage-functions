@@ -1,117 +1,103 @@
 package com.urv.blackeagle.runtime.function;
 
+
 import com.ibm.storlet.sbus.SBusDatagram;
 import com.urv.blackeagle.runtime.api.Api;
 import com.urv.blackeagle.runtime.context.Context;
+
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 
-import java.io.FileDescriptor;
-import java.util.HashMap;
-import java.util.Map;
-
 
 public class FunctionExecutionTask implements Runnable {
-	private Logger logger_ = null;
-	private SBusDatagram dtg = null;
+	private Logger logger_;
+	private Function function_;
+	private SBusDatagram dtg_;
+	private FileOutputStream functionLog_;
+	
+	private Context ctx;
+	private Api api;
+	
+	private Map<String, String> object_metadata = null;
+	private Map<String, String> request_headers = null;
+	private Map<String, String> functionParameters = null;
+	
+	private FileDescriptor inputStreamFd = null;
+	private FileDescriptor outputStreamFd = null;
+	private FileDescriptor commandFd = null;
 
 	/*------------------------------------------------------------------------
 	 * CTOR
 	 * */
-	public FunctionExecutionTask(SBusDatagram dtg, Logger logger) {
+	public FunctionExecutionTask(SBusDatagram dtg, Function function, FileOutputStream functionLog, Logger logger) {
+		this.dtg_ = dtg;
+		this.function_ = function;
 		this.logger_ = logger;
-		this.dtg = dtg;
+		this.functionLog_ = functionLog;
 		
-		logger_.trace("Function execution task created");
+		
+		logger_.trace("Function execution task created");	
+	}
+	
+	
+	/*------------------------------------------------------------------------
+	 * processDatagram
+	 * 
+	 * Process input datagram
+	 * */
+	@SuppressWarnings("unchecked")
+	private void processDatagram(){
+		HashMap<String, String>[] data = this.dtg_.getFilesMetadata();
+		JSONObject metadata;
+		
+		outputStreamFd = this.dtg_.getFiles()[0];
+		logger_.trace("Got object output stream");
+
+		commandFd = this.dtg_.getFiles()[1];
+		logger_.trace("Got Function command stream");
+			
+		inputStreamFd = this.dtg_.getFiles()[2];
+		try {
+			metadata = (JSONObject)new JSONParser().parse(data[2].get("data"));
+			object_metadata = (Map<String, String>) metadata.get("object_metadata");
+			request_headers = (Map<String, String>) metadata.get("request_headers");
+			functionParameters = (Map<String, String>) metadata.get("parameters");
+		} catch (ParseException e) {
+			logger_.trace("Error parsing object headers, request metadata and parameters");
+		}
+		metadata = null;
+		logger_.trace("Got object input stream, request headers, object metadata and function parameters");
+		
+		this.api = new Api(request_headers, logger_);
+		this.ctx = new Context(inputStreamFd, outputStreamFd, functionParameters, functionLog_, commandFd, 
+						  	   object_metadata, request_headers, logger_, api.swift);
 	}
 
+	
 	/*------------------------------------------------------------------------
 	 * run
 	 * 
 	 * Actual function invocation
 	 * */
-	@SuppressWarnings("unchecked")
 	public void run() {
 		
-		int nFiles = dtg.getNFiles();
-
-		FileDescriptor inputStreamFd = null;
-		FileDescriptor outputStreamFd = null;
-		FileDescriptor commandFd = null;
-		FileDescriptor logStream  = null;
+		processDatagram();
 		
-		Map<String, String> object_md = null;
-		Map<String, String> req_md = null;
+		IFunction function = this.function_.getFunction();
+		String functionName = this.function_.getName();
 		
-		String functionName, functionMainClass, functionDependencies;
-		Map<String, String> functionParameters = null;
-		Api api = null;
-		Context ctx = null;
-		Function f = null;
-		
-		HashMap<String, String>[] filesMD = dtg.getFilesMetadata();
-		logger_.trace("Got " + nFiles + " fds");
+		logger_.trace("START: Going to execute '"+functionName+"' function");
+		function.invoke(this.ctx, this.api);
+		ctx.close();
+		api.close();
+		logger_.trace("END: Function '"+functionName+"' executed");
 
-		for (int i = 0; i < nFiles; ++i) {	
-			String strFDtype = filesMD[i].get("type");
-			
-			if (strFDtype.equals("SBUS_FD_INPUT_OBJECT")) {
-				inputStreamFd = dtg.getFiles()[i];
-				JSONObject jsonMetadata;
-				try {
-					jsonMetadata = (JSONObject)new JSONParser().parse(filesMD[i].get("json_md"));
-					object_md = (Map<String, String>) jsonMetadata.get("object_md");
-					req_md = (Map<String, String>) jsonMetadata.get("req_md");
-				} catch (ParseException e) {
-					logger_.trace("Error parsing object or request metadata");
-				}
-				jsonMetadata = null;
-				logger_.trace("Got object input stream and request metadata");
-				
-			} else if (strFDtype.equals("SBUS_FD_OUTPUT_OBJECT")){
-				outputStreamFd = dtg.getFiles()[i];
-				logger_.trace("Got object output stream");
-	
-			} else if (strFDtype.equals("SBUS_FD_OUTPUT_OBJECT_METADATA")) {
-				commandFd = dtg.getFiles()[i];
-				logger_.trace("Got Function command stream");
-				
-			} else if (strFDtype.equals("SBUS_FD_LOGGER")){
-				logStream = dtg.getFiles()[i];
-				functionName = filesMD[i].get("function");
-				functionMainClass = filesMD[i].get("main");
-				functionDependencies = filesMD[i].get("dependencies");
-				try {
-					functionParameters = (Map<String, String>) new JSONParser().parse(filesMD[i].get("parameters"));
-				} catch (ParseException e) {
-					logger_.trace("Error parsing function parameters");
-				}			
-				
-				logger_.trace("Got "+functionName);
-				
-				api = new Api(req_md, logger_);
-				ctx = new Context(inputStreamFd, outputStreamFd, functionName, functionParameters, logStream, commandFd, object_md, req_md, logger_, api.swift);
-				f = new Function(functionName, functionMainClass, functionDependencies, logger_);
-
-				logger_.trace("Function '"+functionName+"' loaded");
-				IFunction function = f.getFunction();
-				logger_.trace("START: Going to execute '"+functionName+"' function");
-				function.invoke(ctx, api);
-				ctx.request.forward();
-				ctx.object.stream.close();
-				ctx.object.metadata.flush();
-				api.swift.close();
-				logger_.trace("END: Function '"+functionName+"' executed");
-				
-				f = null;
-				api = null;
-				ctx = null;
-				function = null;
-				filesMD = null;
-			}
-		}
 	}
 }

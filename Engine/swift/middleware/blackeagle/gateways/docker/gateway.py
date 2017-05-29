@@ -3,6 +3,7 @@ from blackeagle.gateways.docker.function import Function
 from blackeagle.gateways.docker.worker import Worker
 import redis
 import os
+import time
 
 
 class DockerGateway():
@@ -64,13 +65,15 @@ class DockerGateway():
         :param function_info: function information
         :returns: response from the function
         """
-        # 1st. Get necessary data
         object_stream = self._get_object_stream()
         object_metadata = self._get_object_metadata()
         request_headers = dict(self.req.headers)
         f_name = function_info.keys()[0]
-        function_parameters = function_info[f_name]
-
+        if function_info[f_name]:
+            function_parameters = eval(function_info[f_name])
+        else:
+            function_parameters = dict()
+        time1 = time.time()
         worker = self._get_worker(f_name)
         if not worker:
             function = Function(self.be, self.scope, f_name)
@@ -79,9 +82,13 @@ class DockerGateway():
         protocol = Protocol(worker, object_stream, object_metadata,
                             request_headers, function_parameters, self.be)
 
-        #return protocol.comunicate()
+        # return {"command": "RC"}
+        time2 = time.time()
+        print '---------- function took %0.3f ms' % ((time2-time1)*1000.0)
 
-        function_response = dict()
-        function_response['command'] = 'RC'
+        time1 = time.time()
+        resp = protocol.comunicate()
+        time2 = time.time()
+        print '--------- function took %0.3f ms' % ((time2-time1)*1000.0)
 
-        return function_response
+        return resp

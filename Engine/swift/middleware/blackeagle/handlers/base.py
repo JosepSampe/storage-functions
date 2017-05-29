@@ -2,7 +2,6 @@ from blackeagle.gateways import DockerGateway
 from blackeagle.common.utils import DataFdIter
 
 from swift.common.swob import Response
-import redis
 import os
 
 
@@ -124,7 +123,7 @@ class BaseHandler(object):
     @property
     def is_functions_container_request(self):
         """
-        Determines whether the request is over any function container
+        Determines whether the request is over the functions swift container
         """
         return self.container in self.functions_container
 
@@ -186,10 +185,6 @@ class BaseHandler(object):
         return any([mandatory, optional])
 
     @property
-    def is_middlebox_request(self):
-        return 'Middlebox' in self.req.headers
-
-    @property
     def is_function_set(self):
         return any((True for x in self.available_set_headers
                     if x in self.req.headers.keys()))
@@ -198,10 +193,6 @@ class BaseHandler(object):
     def is_function_unset(self):
         return any((True for x in self.available_unset_headers
                     if x in self.req.headers.keys()))
-
-    @property
-    def is_object_prefetch(self):
-        return 'X-Object-Prefetch' in self.req.headers
 
     def is_slo_response(self, resp):
         self.logger.debug(
@@ -256,9 +247,9 @@ class BaseHandler(object):
 
         return response
 
-    def _process_function_data_resp(self, f_data):
+    def _process_function_response_onget(self, f_data):
         """
-        Processes the data returned from the function
+        Processes the response from the function
         """
         if f_data['command'] == 'DW':
             # Data Write from function
@@ -291,10 +282,11 @@ class BaseHandler(object):
         elif f_data['command'] == 'RE':
             # Request Error
             msg = f_data['message']
-            self.response = Response(body=msg + '\n', headers={'etag': ''},
+            self.response = Response(body=msg + '\n',
+                                     headers={'etag': ''},
                                      request=self.req)
 
-    def apply_function_on_get(self):
+    def apply_function_onget(self):
         """
         Call gateway module to get result of function execution
         in GET flow
@@ -304,8 +296,8 @@ class BaseHandler(object):
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
             self._setup_docker_gateway()
-            f_resp = self.docker_gateway.execute_function(function_info)
-            self._process_function_data_resp(f_resp)
+            function_resp = self.docker_gateway.execute_function(function_info)
+            self._process_function_response_onget(function_resp)
 
         if 'Content-Length' not in self.response.headers:
             self.response.headers['Content-Length'] = None

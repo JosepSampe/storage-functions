@@ -1,6 +1,8 @@
 package com.urv.blackeagle.runtime.context;
 
 import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+
 import org.slf4j.Logger;
 
 import com.urv.blackeagle.runtime.api.Swift;
@@ -19,14 +21,14 @@ public class Context {
 	public Storlet storlet;
 
 
-	public Context(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd, String functionName, 
-				   Map<String, String> functionParameters, FileDescriptor logFd, FileDescriptor commandFd, 
-				   Map<String, String> objectMd, Map<String, String> reqMd, Logger localLog, Swift swift) 
+	public Context(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd, Map<String, String> functionParameters, 
+				   FileOutputStream functionLog, FileDescriptor commandFd, Map<String, String> objectMd, 
+				   Map<String, String> reqMd, Logger localLog, Swift swift) 
 	{	
 		String currentObject = reqMd.get("X-Container")+"/"+reqMd.get("X-Object");
 		
 		logger_ = localLog;
-		log = new Log(logFd, logger_);
+		log = new Log(functionLog, logger_);
 		storlet = new Storlet(commandFd, logger_);
 		function = new Function(functionParameters, logger_);
 		response = new Response(logger_);
@@ -37,5 +39,10 @@ public class Context {
 
 		logger_.trace("Full Context created");
 	}
-	
+
+	public void close(){
+		request.forward();
+		object.stream.close();
+		object.metadata.flush();
+	}
 }

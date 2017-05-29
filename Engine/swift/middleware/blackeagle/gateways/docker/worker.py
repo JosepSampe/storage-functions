@@ -1,3 +1,7 @@
+from blackeagle.gateways.docker.bus import Bus
+from blackeagle.gateways.docker.datagram import Datagram
+import shutil
+import errno
 import os
 
 
@@ -38,7 +42,7 @@ class Worker(object):
 
         try:
             os.symlink(docker_path, worker_docker_link)
-        except Exception:
+        except:
             os.remove(worker_docker_link)
             os.symlink(docker_path, worker_docker_link)
 
@@ -48,18 +52,39 @@ class Worker(object):
         function_bin_path = self.function.get_bin_path()
         worker_function_link = os.path.join(self.worker_path, self.docker_id, 'function')
 
+        if os.path.exists(worker_function_link):
+            shutil.rmtree(worker_function_link)
+
         try:
-            os.symlink(function_bin_path, worker_function_link)
-        except Exception:
-            os.remove(worker_function_link)
-            os.symlink(function_bin_path, worker_function_link)
+            shutil.copytree(function_bin_path, worker_function_link)
+        except:
+            shutil.copy2(function_bin_path, worker_function_link)
 
     def _execute(self):
         """
-        Executes the function into the attached worker
+        Executes the function into the attached docker
         """
-        # TODO: Send execute command to docker
-        pass
+        self.fds = list()
+        self.fdmd = list()
+
+        self.function.open_log()
+        self.fds.append(self.function.get_logfd())
+        md = dict()
+        md['type'] = 4
+        md['function'] = self.function.get_obj_name()
+        md['main_class'] = self.function.get_main_class()
+        self.fdmd.append(md)
+
+        dtg = Datagram()
+        dtg.set_files(self.fds)
+        dtg.set_metadata(self.fdmd)
+        dtg.set_command(1)
+
+        # Send datagram to function worker
+        channel = self.worker_channel
+        rc = Bus.send(channel, dtg)
+        if (rc < 0):
+            raise Exception("Failed to send execute command")
 
     def get_channel(self):
         return self.worker_channel

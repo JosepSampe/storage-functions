@@ -35,7 +35,7 @@ public class Swift {
 	private String swiftBackend = "http://192.168.2.1:8080/v1/"; // TODO: get from cofig file
 	private String redisHost = "192.168.2.1"; // TODO: get from cofig file
 	private int redisPort = 6379; // TODO: get from cofig file
-	private int redisDefaultDatabase = 5; // TODO: get from cofig file
+	private int redisDefaultDatabase = 10; // TODO: get from cofig file
 	private String memcachedHost = "192.168.2.1"; // TODO: get from cofig file
 	private int memcachedPort = 11211; // TODO: get from cofig file
 	
@@ -62,7 +62,7 @@ public class Swift {
 			logger_.trace("Failed to create Memcached client");
 		}*/
 		
-		logger_.trace("API Swift created");
+		logger_.info("API Swift created");
 	}
 	
 	public void close(){
@@ -73,7 +73,7 @@ public class Swift {
 	public class Metadata { 
 		
 		private void getAll(String source){
-			logger_.trace("GETTING ALL METADATA");
+			logger_.info("Getting object metadata from Swift");
 
 			String objectID = tenantId+"/"+source;
 			Set<String> keys = redis.keys(objectID);
@@ -83,7 +83,7 @@ public class Swift {
 				try {
 					conn.setRequestMethod("HEAD");
 				} catch (ProtocolException e) {
-					logger_.trace("Error: Bad Protocol");
+					logger_.error("API Swift: Bad Protocol");
 				}
 				sendRequest(conn);
 				Map<String, List<String>> headers = conn.getHeaderFields();		
@@ -161,6 +161,7 @@ public class Swift {
 		}
 		
 		public void flush(String source){
+			logger_.info("Going to offload object metadata to Swift");
 			String objectID = tenantId+"/"+source;
 			Map<String, String> redisData = redis.hgetAll(objectID);
 			HttpURLConnection conn = newConnection(source);
@@ -168,7 +169,7 @@ public class Swift {
 			try {
 				conn.setRequestMethod("POST");
 			} catch (ProtocolException e) {
-				logger_.trace("Error: Bad Protocol");
+				logger_.error("API Swift: Bad Protocol");
 			}
 			sendRequest(conn);
 		}
@@ -181,7 +182,7 @@ public class Swift {
 		try {
 			conn.setRequestMethod("POST");
 		} catch (ProtocolException e) {
-			logger_.trace("Error: Bad Protocol");
+			logger_.error("API Swift: Bad Protocol");
 		}
 		sendFunctionMetadata(conn, metadata);
 	}	
@@ -196,7 +197,7 @@ public class Swift {
 			os.close();
 			status = conn.getResponseCode();
 		} catch (IOException e) {
-			logger_.trace("Error setting function metadata");
+			logger_.error("API Swift: Error setting function metadata");
 		}
 		conn.disconnect();	
 		return status;
@@ -210,10 +211,10 @@ public class Swift {
 			try {
 				conn.setRequestMethod("PUT");
 			} catch (ProtocolException e) {
-				logger_.trace("Error: Bad Protocol");
+				logger_.error("API Swift: Bad Protocol");
 			}
 			sendRequest(conn);
-			logger_.trace("Copying "+source+" object to "+dest);
+			logger_.info("Copying "+source+" object to "+dest);
 		}
 	}
 	
@@ -225,16 +226,16 @@ public class Swift {
 			try {
 				conn.setRequestMethod("PUT");
 			} catch (ProtocolException e) {
-				logger_.trace("Error: Bad Protocol");
+				logger_.trace("API Swift: Bad Protocol");
 			}
 			sendRequest(conn);
-			logger_.trace("Moving "+source+" object to "+dest);
+			logger_.info("Moving "+source+" object to "+dest);
 		}
 	}
 	
 	public void prefetch(String source, String data){
 		String id =  "AUTH_"+tenantId+"/"+source;
-		logger_.trace("Prefetching "+id);
+		logger_.info("Prefetching "+id);
 		String hash = MD5(id);
 		//mc.set(hash, 600, data);
 	}	
@@ -245,7 +246,7 @@ public class Swift {
 		try {
 			conn.setRequestMethod("POST");
 		} catch (ProtocolException e) {
-			logger_.trace("Error: Bad Protocol");
+			logger_.error("API Swift: Bad Protocol");
 		}
 		sendRequest(conn);
 	}
@@ -258,7 +259,7 @@ public class Swift {
 		try {
 			conn.setRequestMethod("DELETE");
 		} catch (ProtocolException e) {
-			logger_.trace("Error: Bad Protocol");
+			logger_.error("API Swift: Bad Protocol");
 		}
 		sendRequest(conn);
 	}
@@ -292,7 +293,7 @@ public class Swift {
 		try {
 			conn.setRequestMethod("GET");
 		} catch (ProtocolException pe) {
-			logger_.trace("Error: Bad Protocol");
+			logger_.error("API Swift: Bad Protocol");
 		} 
 		return conn;	
 	}
@@ -308,9 +309,9 @@ public class Swift {
 			if (token != null) conn.setRequestProperty("X-Auth-Token", token);
 			conn.setRequestProperty("User-Agent", "function_java_runtime");
 		} catch (MalformedURLException e) {
-			logger_.trace("Error: Malformated URL");
+			logger_.error("API Swift: Malformated URL");
 		} catch (IOException e) {
-			logger_.trace("Error opeing connection");
+			logger_.error("API Swift: Error opening connection");
 		}
 		return conn;	
 	}
@@ -321,7 +322,7 @@ public class Swift {
 			conn.connect();
 			status = conn.getResponseCode();
 		} catch (IOException e) {
-			logger_.trace("Error getting response");
+			logger_.error("API Swift: Error getting response");
 		}
 		conn.disconnect();
 		return status;
@@ -332,7 +333,7 @@ public class Swift {
 		try {
 			m = MessageDigest.getInstance("MD5");
 		} catch (NoSuchAlgorithmException e) {
-			logger_.trace("Hash Algorith error");
+			logger_.error("API Swift: Hash Algorith error");
 		}
         m.update(key.getBytes(),0,key.length());
         String hash = new BigInteger(1,m.digest()).toString(16);

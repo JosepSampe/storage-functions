@@ -14,7 +14,7 @@ class ComputeHandler(BaseHandler):
         return self.req.split_path(3, 4, rest_with_last=True)
 
     def _get_functions(self):
-        self.function_data = eval(self.req.headers['function_data'])
+        self.function_data = eval(self.req.headers.pop('function_data'))
 
     def handle_request(self):
         if hasattr(self, self.method):
@@ -31,17 +31,17 @@ class ComputeHandler(BaseHandler):
     @public
     def GET(self):
         """
-        GET handler on Proxy
+        GET handler on Compute node
         """
         self.response = self.req.get_response(self.app)
-        self.apply_function_on_get()
+        self.apply_function_onget()
 
         return self.response
 
     @public
     def PUT(self):
         """
-        PUT handler on Proxy
+        PUT handler on Compute node
         """
-        self.apply_function_on_put()
+        self.apply_function_onput()
         return self.req.get_response(self.app)

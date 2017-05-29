@@ -82,7 +82,7 @@ public class Object {
 				br = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
 				bw = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
 			} catch (UnsupportedEncodingException e) {
-				logger_.trace("Error: Unsuported encoding URF-8");
+				logger_.error("CTX Object: Unsuported encoding URF-8");
 			}
 		}
 		
@@ -116,16 +116,16 @@ public class Object {
 				}
 				len = inputStream.read(b);
 			} catch (IOException e) {
-				logger_.trace("Error while reading input data from the object");
+				logger_.error("CTX Object: Error while reading input data from the object");
 				len = -1;
 			}
 			if (len == -1){
 				try {
 					br.close();
 					inputStream.close();
-					logger_.trace("Closed input stream");
+					logger_.info("Closed input stream");
 				} catch (IOException e) {
-					logger_.trace("Error closing buffered reader (input)");
+					logger_.error("CTX Object: Error closing buffered reader (input)");
 				}
 				return null;
 			}
@@ -152,16 +152,16 @@ public class Object {
 				}
 				len = br.read(cbuf);
 			} catch (IOException e) {
-				logger_.trace("Error while reading input data from the object");
+				logger_.error("CTX Object: Error while reading input data from the object");
 				len = -1;
 			}
 			if (len == -1){
 				try {
 					br.close();
 					inputStream.close();
-					logger_.trace("Closed input stream");
+					logger_.info("Closed input stream");
 				} catch (IOException e) {
-					logger_.trace("Error closing buffered reader (input)");
+					logger_.error("CTX Object: Error closing buffered reader (input)");
 				}
 				return null;
 			}
@@ -184,7 +184,8 @@ public class Object {
 				}
 				line = br.readLine();
 			} catch (IOException e) {
-				logger_.trace("Error while reading lines");
+				logger_.error("CTX Object: Error while reading lines");
+				this.close();
 			}
 			return line;
 		}	
@@ -197,7 +198,8 @@ public class Object {
 				}
 				outputStream.write(data);
 			} catch (IOException e) {
-				logger_.trace("Error while writing out data");
+				logger_.error("CTX Object: Error while writing out data");
+				this.close();
 			}
 		}
 		
@@ -209,7 +211,8 @@ public class Object {
 				}
 				bw.write(data);
 			} catch (IOException e) {
-				logger_.trace("Error while writing out data");
+				logger_.error("CTX Object: Error while writing out data");
+				this.close();
 			}
 		}
 		
@@ -219,16 +222,16 @@ public class Object {
 				inputStream.close();
 				bw.close();
 				outputStream.close();
-				logger_.trace("Closed input/output streams");
+				logger_.info("Closed input/output streams");
 			} catch (IOException e) {
-				logger_.trace("Error closing buffered writer (output)");
+				logger_.error("CTX Object: Error closing input/output streams");
 			}
 		}
 		
 		@SuppressWarnings("unchecked")
 		public void sendReadCommand() {
 			outMetadata.put("cmd","DR");
-			this.sendCommand();
+			this.sendDataToSwift();
 
 		}
 		
@@ -240,21 +243,26 @@ public class Object {
 				this.sendReadCommand();
 			}
 			outMetadata.put("cmd","DW");
+			this.sendDataToSwift();
+			
+			outMetadata.clear();
 			if (metadata.isModified())
 				outMetadata.put("object_metadata", metadata.getAll());
 			if (response.headers.isModified())
 				outMetadata.put("response_headers",response.headers.getAll());
 			if (request.headers.isModified())
 				outMetadata.put("request_headers", request.headers.getAll());
-			this.sendCommand();
+			this.sendDataToSwift();
+			
+			request.command_sent = true;
 		}
 		
-		public void sendCommand() {
+		public void sendDataToSwift() {
 			try {
 				command.write(outMetadata.toString().getBytes());
 				command.flush();
 			} catch (IOException e) {
-				logger_.trace("Error sending "+ outMetadata.toString() + " command");
+				logger_.error("CTX Object: Error sending "+ outMetadata.toString() + " command");
 			}
 		}
 		
