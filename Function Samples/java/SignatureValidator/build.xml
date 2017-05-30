@@ -2,17 +2,12 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<manifest file="build/MANIFEST.MF">
-		  <attribute name="Main-Class"
-		             value="com.urv.blackeagle.function.signaturevalidator.Handler" />
-		</manifest>
 		<javac srcdir="src/com/urv/blackeagle/function/signaturevalidator/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="build/signature-validator-1.0.jar"
-	    	manifest="build/MANIFEST.MF"
 	        basedir="build"
 	     	includes="com/urv/blackeagle/function/signaturevalidator/*">
 	    </jar>

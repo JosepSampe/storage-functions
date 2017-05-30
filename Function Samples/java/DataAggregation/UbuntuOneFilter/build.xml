@@ -2,10 +2,6 @@
 	
 	<target name="compile">
 		<mkdir dir="build" />
-		<manifest file="build/MANIFEST.MF">
-		  <attribute name="Main-Class"
-		             value="com.urv.blackeagle.function.uone.Handler" />
-		</manifest>
 		<javac srcdir="src/com/urv/blackeagle/function/uone/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement path="../../blackeagle-runtime-1.0.jar"/>
@@ -13,7 +9,6 @@
 			</classpath>		
 		</javac>
 	    <jar destfile="build/uone-filter-1.0.jar"
-	    	manifest="build/MANIFEST.MF"
 	        basedir="build"
 	     	includes="com/urv/blackeagle/function/uone/*">
 	    </jar>

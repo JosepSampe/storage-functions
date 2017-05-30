@@ -64,6 +64,8 @@ class BaseHandler(object):
         self.get_keys = ['onget', 'onget-before', 'onget-manifest']
         self.put_keys = ['onput']
         self.del_keys = ['ondelete']
+        self.mandatory_function_metadata = ['Language', 'Memory',
+                                            'Timeout', 'Main']
 
     def _setup_docker_gateway(self, response=None):
         self.req.headers['X-Current-Server'] = self.execution_server
@@ -129,7 +131,7 @@ class BaseHandler(object):
         """
         Determines whether the request is over the functions swift container
         """
-        return self.container in self.functions_container
+        return self.container in self.functions_container and self.method != 'PUT'
 
     @property
     def is_function_object_put(self):
@@ -184,7 +186,8 @@ class BaseHandler(object):
                          not self.is_functions_container_request])
 
         optional = any([self.is_function_set_to_container,
-                        self.is_head_request])
+                        self.is_head_request,
+                        self.is_function_object_put])
 
         return any([mandatory, optional])
 

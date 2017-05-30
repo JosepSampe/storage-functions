@@ -2,10 +2,6 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<manifest file="build/MANIFEST.MF">
-		  <attribute name="Main-Class"
-		             value="com.urv.blackeagle.function.cbac.Handler" />
-		</manifest>
 		<javac srcdir="src/com/urv/blackeagle/function/cbac/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement 
@@ -13,7 +9,6 @@
 			</classpath>		
 		</javac>
 	    <jar destfile="build/cbac-1.0.jar"
-	    	manifest="build/MANIFEST.MF"
 	        basedir="build"
 	     	includes="com/urv/blackeagle/function/cbac/*">
 	    </jar>

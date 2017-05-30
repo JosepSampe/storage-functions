@@ -173,6 +173,12 @@ class ProxyHandler(BaseHandler):
         return Response(body=msg, headers={'etag': ''},
                         request=self.req)
 
+    def _check_mandatory_metadata(self):
+        for key in self.mandatory_function_metadata:
+            if 'X-Object-Meta-Function-'+key not in self.req.headers:
+                return False
+        return True
+
     def _set_headers(self):
         if 'Content-Type' in self.req.headers:
             self.req.headers.pop('Content-Type')
@@ -252,16 +258,17 @@ class ProxyHandler(BaseHandler):
         """
         PUT handler on Proxy
         """
-        # TODO: Validate function PUT
-
-        if self.function_data:
+        if self.is_function_object_put:
+            if not self._check_mandatory_metadata():
+                msg = ('Mandatory function metadata not provided: ' +
+                       str(self.mandatory_function_metadata) + '\n')
+                raise HTTPUnauthorized(msg)
+        elif self.function_data:
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
-            response = self._handle_put_trough_compute_node()
-        else:
-            response = self.req.get_response(self.app)
+            return self._handle_put_trough_compute_node()
 
-        return response
+        return self.req.get_response(self.app)
 
     @public
     def POST(self):
