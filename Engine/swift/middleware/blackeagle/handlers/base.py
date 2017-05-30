@@ -60,6 +60,10 @@ class BaseHandler(object):
                                         'X-Function-Onget-Manifest-Delete',
                                         'X-Function-Ondelete-Delete',
                                         'X-Function-Delete']
+        self.function_methods = ['GET', 'PUT', 'DELETE']
+        self.get_keys = ['onget', 'onget-before', 'onget-manifest']
+        self.put_keys = ['onput']
+        self.del_keys = ['ondelete']
 
     def _setup_docker_gateway(self, response=None):
         self.req.headers['X-Current-Server'] = self.execution_server
@@ -209,7 +213,7 @@ class BaseHandler(object):
                     self.account, self.container, self.obj))
         return is_slo
 
-    def _process_function_data_req(self, f_data):
+    def _process_function_response_onput(self, f_data):
         """
         Processes the data returned from the function
         """
@@ -285,6 +289,22 @@ class BaseHandler(object):
             self.response = Response(body=msg + '\n',
                                      headers={'etag': ''},
                                      request=self.req)
+
+    def apply_function_onput(self):
+        """
+        Call gateway module to get result of function execution
+        in GET flow
+        """
+        if self.function_data:
+            function_info = eval(self.function_data['onput'])
+            self.logger.info('There are functions to execute: ' +
+                             str(self.function_data))
+            self._setup_docker_gateway()
+            function_resp = self.docker_gateway.execute_function(function_info)
+
+            return self._process_function_response_onput(function_resp)
+        else:
+            return self.req.get_response(self.app)
 
     def apply_function_onget(self):
         """

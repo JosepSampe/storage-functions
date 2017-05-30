@@ -11,7 +11,6 @@ class DockerGateway():
     def __init__(self, be):
         self.be = be
         self.req = be.req
-        self.resp = be.response
         self.conf = be.conf
         self.logger = be.logger
         self.account = be.account
@@ -39,14 +38,14 @@ class DockerGateway():
 
     def _get_object_stream(self):
         if self.method == 'get':
-            return self.resp.app_iter
+            return self.be.response.app_iter
         if self.method == 'put':
             return self.req.environ['wsgi.input']
 
     def _get_object_metadata(self):
         headers = dict()
         if self.method == "get":
-            headers = self.resp.headers
+            headers = self.be.response.headers
         elif self.method == "put":
             if 'Content-Length' in self.req.headers:
                 headers['Content-Length'] = self.req.headers['Content-Length']
@@ -84,11 +83,11 @@ class DockerGateway():
 
         # return {"command": "RC"}
         time2 = time.time()
-        print '---------- function took %0.3f ms' % ((time2-time1)*1000.0)
+        print '---------- Function took %0.3f s' % ((time2-time1))
 
         time1 = time.time()
         resp = protocol.comunicate()
         time2 = time.time()
-        print '--------- function took %0.3f ms' % ((time2-time1)*1000.0)
+        print '--------- Function took %0.3f s' % ((time2-time1))
 
         return resp

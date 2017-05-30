@@ -1,15 +1,12 @@
 from blackeagle.handlers import BaseHandler
-from blackeagle.common.utils import DataIter
 from blackeagle.handlers.base import NotFunctionRequest
-
 from swift.common.swob import HTTPNotFound, HTTPUnauthorized, Response
 from swift.common.utils import public
 from swift.common.wsgi import make_subrequest
+from swiftclient.client import http_connection, quote
 import os
 import random
 import redis
-
-from swiftclient.client import http_connection, quote
 
 
 class ProxyHandler(BaseHandler):
@@ -34,17 +31,34 @@ class ProxyHandler(BaseHandler):
         return self.req.split_path(3, 4, rest_with_last=True)
 
     def _get_functions(self):
-        self.function_list = dict()
         self.function_data = dict()
+
+        self.function_list = None
+        self.parent_function_list = None
+
         if self.obj:
             key = self.req.path
             self.function_list = self.metadata_server.hgetall(key)
-
         key = os.path.join('/', self.api_version, self.account, self.container)
         self.parent_function_list = self.metadata_server.hgetall(key)
 
-        self.function_data.update(self.parent_function_list)
-        self.function_data.update(self.function_list)
+        if self.method in self.function_methods:
+            if self.method == 'GET':
+                keys = self.get_keys
+            elif self.method == 'PUT':
+                keys = self.put_keys
+            elif self.method == 'DELETE':
+                keys = self.del_keys
+
+            if self.parent_function_list:
+                for key in self.parent_function_list:
+                    if key in keys:
+                        self.function_data[key] = self.parent_function_list[key]
+
+            if self.function_list:
+                for key in self.function_list:
+                    if key in keys:
+                        self.function_data[key] = self.function_list[key]
 
     def handle_request(self):
         if hasattr(self, self.method) and self.is_valid_request:
@@ -99,7 +113,7 @@ class ProxyHandler(BaseHandler):
             raise HTTPUnauthorized('The system can only set 1 '
                                    'function at a time.\n')
 
-        trigger = header[0].lower().replace('-manifest', '').rsplit('-', 1)[1]
+        trigger = header[0].lower().split('-', 2)[2]
         function = self.req.headers[header[0]]+".tar.gz"
 
         if self.req.body:
@@ -114,7 +128,7 @@ class ProxyHandler(BaseHandler):
             raise HTTPUnauthorized('The system can only unset 1 '
                                    'function at a time.\n')
 
-        trigger = header[0].lower().replace('-manifest', '').rsplit('-', 2)[1]
+        trigger = header[0].lower().split('-', 2)[2]
         function = self.req.headers[header[0]]+".tar.gz"
 
         return trigger, function
@@ -159,19 +173,7 @@ class ProxyHandler(BaseHandler):
         return Response(body=msg, headers={'etag': ''},
                         request=self.req)
 
-    def _handle_get_trough_compute_node(self):
-        self.req.headers['function_data'] = self.function_data
-
-        compute_nodes = self.compute_nodes.split(',')
-        compute_node = random.sample(compute_nodes, 1)
-
-        self.logger.info('Forwarding request to a compute node: ' +
-                         compute_node[0])
-
-        url = os.path.join('http://', compute_node[0], self.api_version, self.account)
-        parsed, conn = http_connection(url)
-        path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
-
+    def _set_headers(self):
         if 'Content-Type' in self.req.headers:
             self.req.headers.pop('Content-Type')
         if 'X-Domain-Name' in self.req.headers:
@@ -179,14 +181,50 @@ class ProxyHandler(BaseHandler):
         if 'X-Domain-Id' in self.req.headers:
             self.req.headers.pop('X-Domain-Id')
 
-        conn.request(self.method, path, '', self.req.headers)
-        resp = conn.getresponse()
-        resp_headers = {}
-        for header, value in resp.getheaders():
-            resp_headers[header] = value
+        self.req.headers['function_data'] = self.function_data
 
-        response = Response(app_iter=DataIter(resp, 5),
-                            headers=resp_headers,
+    def _prepare_connection(self):
+        compute_nodes = self.compute_nodes.split(',')
+        compute_node = random.sample(compute_nodes, 1)
+
+        self.logger.info('Forwarding request to a compute node: ' +
+                         compute_node[0])
+        url = os.path.join('http://', compute_node[0], self.api_version, self.account)
+
+        parsed, conn = http_connection(url)
+        path = '%s/%s/%s' % (parsed.path, quote(self.container), quote(self.obj))
+
+        return conn, path
+
+    def _handle_get_trough_compute_node(self):
+        self._set_headers()
+        conn, path = self._prepare_connection()
+
+        conn.request(self.method, path, None, self.req.headers)
+        resp = conn.getresponse()
+
+        def reader():
+            try:
+                return resp.read(65535)
+            except (ValueError, IOError) as e:
+                raise ValueError(str(e))
+
+        data_source = iter(reader, '')
+
+        response = Response(app_iter=data_source,
+                            headers=conn.resp.headers,
+                            request=self.req)
+
+        return response
+
+    def _handle_put_trough_compute_node(self):
+        self._set_headers()
+        conn, path = self._prepare_connection()
+        data_source = self.req.environ['wsgi.input']
+
+        resp = conn.putrequest(path, data_source, self.req.headers)
+
+        response = Response(headers=resp.headers,
                             request=self.req)
 
         return response
@@ -215,6 +253,7 @@ class ProxyHandler(BaseHandler):
         PUT handler on Proxy
         """
         # TODO: Validate function PUT
+
         if self.function_data:
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))

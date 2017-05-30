@@ -1,6 +1,5 @@
 from blackeagle.handlers import BaseHandler
 from blackeagle.handlers.base import NotFunctionRequest
-
 from swift.common.utils import public
 
 
@@ -43,5 +42,4 @@ class ComputeHandler(BaseHandler):
         """
         PUT handler on Compute node
         """
-        self.apply_function_onput()
-        return self.req.get_response(self.app)
+        return self.apply_function_onput()
