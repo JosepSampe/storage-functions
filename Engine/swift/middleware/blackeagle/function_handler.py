@@ -1,20 +1,22 @@
 from swift.common.swob import wsgify
 from swift.common.utils import get_logger
 from blackeagle.handlers import ProxyHandler
-from blackeagle.handlers import ObjectHandler
 from blackeagle.handlers import ComputeHandler
 from blackeagle.handlers.base import NotFunctionRequest
+import redis, time
 
 
 class FunctionHandlerMiddleware(object):
 
     def __init__(self, app, conf):
         self.app = app
-        self.exec_server = conf.get('execution_server')
+        self.conf = conf
+        self.exec_server = self.conf.get('execution_server')
         self.logger = get_logger(conf, name=self.exec_server +
                                  "-server Blackeagle",
                                  log_route='function_handler')
-        self.conf = conf
+        self.redis_sock = self.conf.get('redis_sock')
+        self.redis_db = self.conf.get('redis_db')
         self.handler_class = self._get_handler(self.exec_server)
 
     def _get_handler(self, exec_server):
@@ -22,14 +24,11 @@ class FunctionHandlerMiddleware(object):
         Generate Handler class based on execution_server parameter
 
         :param exec_server: Where this storlet_middleware is running.
-                            This should value should be 'proxy', 'object'
-                            or 'compute'
+                            This should value should be 'proxy' or 'compute'
         :raise ValueError: If exec_server is invalid
         """
         if exec_server == 'proxy':
             return ProxyHandler
-        elif exec_server == 'object':
-            return ObjectHandler
         elif exec_server == 'compute':
             return ComputeHandler
         else:
@@ -39,16 +38,19 @@ class FunctionHandlerMiddleware(object):
     @wsgify
     def __call__(self, req):
         try:
-            handler = self.handler_class(req, self.conf, self.app, self.logger)
+            r = redis.StrictRedis(unix_socket_path=self.redis_sock, db=self.redis_db)
+            handler = self.handler_class(req, self.conf, self.app, self.logger, r)
             self.logger.debug('%s call in %s' % (req.method, req.path))
 
-            return handler.handle_request()
+            
 
         except NotFunctionRequest:
             self.logger.debug('No Blackeagle Request, bypassing middleware')
             return req.get_response(self.app)
         except Exception as exception:
             raise exception
+        
+        return handler.handle_request()
 
 
 def filter_factory(global_conf, **local_conf):
@@ -72,6 +74,7 @@ def filter_factory(global_conf, **local_conf):
     # Redis metastore
     conf['redis_host'] = conf.get('redis_host', 'localhost')
     conf['redis_port'] = int(conf.get('redis_port', 6379))
+    conf['redis_sock'] = conf.get('redis_sock', '/var/run/redis/redis.sock')
     conf['redis_db'] = int(conf.get('redis_db', 10))
     # Function defaults
     conf['default_function_timeout'] = int(conf.get('default_function_timeout', 10))

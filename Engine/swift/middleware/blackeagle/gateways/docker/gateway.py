@@ -1,9 +1,9 @@
 from blackeagle.gateways.docker.protocol import Protocol
 from blackeagle.gateways.docker.function import Function
 from blackeagle.gateways.docker.worker import Worker
-import redis
-import os
+import pickle
 import time
+import os
 
 
 class DockerGateway():
@@ -14,27 +14,11 @@ class DockerGateway():
         self.conf = be.conf
         self.logger = be.logger
         self.account = be.account
+        self.redis = be.redis
         self.method = self.req.method.lower()
         self.scope = self.account[5:18]
         self.functions_container = self.conf["functions_container"]
         self.execution_server = self.conf["execution_server"]
-
-        self._connect_redis()
-
-    def _connect_redis(self):
-        self.redis_host = self.conf.get('redis_host')
-        self.redis_port = self.conf.get('redis_port')
-        self.redis_db = self.conf.get('redis_db')
-
-        self.redis = redis.StrictRedis(self.redis_host,
-                                       self.redis_port,
-                                       self.redis_db)
-
-    def _get_worker(self, function_name):
-        key = os.path.join(self.scope, function_name)
-        # worker = self.redis.get(key+"*")
-        worker = None
-        return worker
 
     def _get_object_stream(self):
         if self.method == 'get':
@@ -72,22 +56,23 @@ class DockerGateway():
             function_parameters = eval(function_info[f_name])
         else:
             function_parameters = dict()
-        time1 = time.time()
-        worker = self._get_worker(f_name)
-        if not worker:
-            function = Function(self.be, self.scope, f_name)
-            worker = Worker(self.be, self.scope, self.redis, function)
 
+        time1 = time.time()
+        function = Function(self.be, self.scope, f_name)
+        time2 = time.time()
+        print '------ FUNCTION took %0.6f s' % ((time2-time1))
+
+        time1 = time.time()
+        worker = Worker(self.be, self.scope, self.redis, function)
+        time2 = time.time()
+        print '------ WORKER took %0.6f s' % ((time2-time1))
+
+        time1 = time.time()
         protocol = Protocol(worker, object_stream, object_metadata,
                             request_headers, function_parameters, self.be)
-
-        # return {"command": "RC"}
-        time2 = time.time()
-        print '---------- Function took %0.3f s' % ((time2-time1))
-
-        time1 = time.time()
         resp = protocol.comunicate()
         time2 = time.time()
-        print '--------- Function took %0.3f s' % ((time2-time1))
+        print '----- PROTOCOL took %0.6f s' % ((time2-time1))
 
+        # return {"command": "RC"}
         return resp

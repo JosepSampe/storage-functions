@@ -7,10 +7,6 @@ import json
 import os
 import sys
 
-FUNCTION_FD_INPUT_OBJECT = 0
-FUNCTION_FD_OUTPUT_OBJECT = 1
-FUNCTION_FD_OUTPUT_COMMAND = 2
-
 eventlet.monkey_patch()
 
 
@@ -46,7 +42,7 @@ class Protocol(object):
         self.output_data_read_fd, self.output_data_write_fd = os.pipe()
         self.fds.append(self.output_data_write_fd)
         md = dict()
-        md['type'] = FUNCTION_FD_OUTPUT_OBJECT
+        md['type'] = "OUTPUT_FD"
         self.fdmd.append(md)
 
     def _add_output_command_stream(self):
@@ -56,7 +52,7 @@ class Protocol(object):
         self.command_read_fd, self.command_write_fd = os.pipe()
         self.fds.append(self.command_write_fd)
         md = dict()
-        md['type'] = FUNCTION_FD_OUTPUT_COMMAND
+        md['type'] = "COMMAND_FD"
         self.fdmd.append(md)
 
     def _add_input_object_stream(self):
@@ -80,7 +76,7 @@ class Protocol(object):
                     'parameters': self.function_parameters}
 
         md = dict()
-        md['type'] = FUNCTION_FD_INPUT_OBJECT
+        md['type'] = "INPUT_FD"
         md['data'] = json.dumps(metadata)
         self.fdmd.append(md)
 
@@ -159,7 +155,6 @@ class Protocol(object):
             else:
                 raise ValueError('No response from function')
         except:
-            # TODO: handle timeout or no response exception
             e = sys.exc_info()[1]
             f_resp['cmd'] = 'RE'  # Request Error
             f_resp['message'] = ('Error running ' + self.function_name +

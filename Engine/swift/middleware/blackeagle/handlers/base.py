@@ -37,7 +37,7 @@ class BaseHandler(object):
     """
     req = _request_instance_property()
 
-    def __init__(self, req, conf, app, logger):
+    def __init__(self, req, conf, app, logger, redis):
         """
         :param req: swob.Request instance
         :param conf: gatway conf dict
@@ -46,6 +46,7 @@ class BaseHandler(object):
         self.conf = conf
         self.app = app
         self.logger = logger
+        self.redis = redis
         self.method = self.req.method
         self.execution_server = conf["execution_server"]
         self.functions_container = conf.get('function_container')

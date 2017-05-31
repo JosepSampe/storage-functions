@@ -6,26 +6,17 @@ from swift.common.wsgi import make_subrequest
 from swiftclient.client import http_connection, quote
 import os
 import random
-import redis
 
 
 class ProxyHandler(BaseHandler):
 
-    def __init__(self, request, conf, app, logger):
+    def __init__(self, request, conf, app, logger, redis):
         super(ProxyHandler, self).__init__(
-            request, conf, app, logger)
+            request, conf, app, logger, redis)
 
         self.functions_container = self.conf["functions_container"]
         self.compute_nodes = self.conf["compute_nodes"]
         self.req.headers['function-enabled'] = True
-
-        self.redis_host = conf.get('redis_host')
-        self.redis_port = conf.get('redis_port')
-        self.redis_db = conf.get('redis_db')
-
-        self.metadata_server = redis.StrictRedis(self.redis_host,
-                                                 self.redis_port,
-                                                 self.redis_db)
 
     def _parse_vaco(self):
         return self.req.split_path(3, 4, rest_with_last=True)
@@ -38,9 +29,9 @@ class ProxyHandler(BaseHandler):
 
         if self.obj:
             key = self.req.path
-            self.function_list = self.metadata_server.hgetall(key)
+            self.function_list = self.redis.hgetall(key)
         key = os.path.join('/', self.api_version, self.account, self.container)
-        self.parent_function_list = self.metadata_server.hgetall(key)
+        self.parent_function_list = self.redis.hgetall(key)
 
         if self.method in self.function_methods:
             if self.method == 'GET':
@@ -121,18 +112,6 @@ class ProxyHandler(BaseHandler):
 
         return trigger, function, params
 
-    def _get_function_unset_data(self):
-        header = [i for i in self.available_unset_headers
-                  if i in self.req.headers.keys()]
-        if len(header) > 1:
-            raise HTTPUnauthorized('The system can only unset 1 '
-                                   'function at a time.\n')
-
-        trigger = header[0].lower().split('-', 2)[2]
-        function = self.req.headers[header[0]]+".tar.gz"
-
-        return trigger, function
-
     def _set_function(self):
         """
         Sets the specified function to the trigger of an object or a container
@@ -145,12 +124,24 @@ class ProxyHandler(BaseHandler):
         key = self.req.path
 
         self._verify_access(self.container, self.obj)
-        self.metadata_server.hset(key, trigger, function_data)
+        self.redis.hset(key, trigger, function_data)
 
         msg = 'Function "' + function.replace('.tar.gz', '') + '" correctly ' \
               'assigned to the "' + trigger + '" trigger.\n'
-
+        self.logger.info(msg)
         return Response(body=msg, headers={'etag': ''}, request=self.req)
+
+    def _get_function_unset_data(self):
+        header = [i for i in self.available_unset_headers
+                  if i in self.req.headers.keys()]
+        if len(header) > 1:
+            raise HTTPUnauthorized('The system can only unset 1 '
+                                   'function at a time.\n')
+
+        trigger = header[0].lower().split('-', 2)[2].rsplit('-', 1)[0]
+        function = self.req.headers[header[0]]+".tar.gz"
+
+        return trigger, function
 
     def _unset_function(self):
         """
@@ -158,17 +149,18 @@ class ProxyHandler(BaseHandler):
         """
         trigger, function = self._get_function_unset_data()
         key = self.req.path
-        function_data = self.metadata_server.hgetall(key)
+        function_data = self.redis.hgetall(key)
         if trigger in function_data:
-            self.metadata_server.hdel(key, trigger)
+            self.redis.hdel(key, trigger)
             del function_data[trigger]
             if not function_data:
-                self.metadata_server.delete(key)
+                self.redis.delete(key)
             msg = 'Function "' + function.replace('.tar.gz', '') + '" correctly '\
                   ' removed from the "' + trigger + '" trigger.\n'
         else:
             msg = 'Error: Function "' + function.replace('.tar.gz', '') + '" not'\
                   ' assigned to the "' + trigger + '" trigger.\n'
+        self.logger.info(msg)
 
         return Response(body=msg, headers={'etag': ''},
                         request=self.req)
@@ -276,10 +268,8 @@ class ProxyHandler(BaseHandler):
         POST handler on Proxy
         """
         if self.is_function_set:
-            self.logger.info('Setting function')
             response = self._set_function()
         elif self.is_function_unset:
-            self.logger.info('Unsetting function')
             response = self._unset_function()
         else:
             response = self.req.get_response(self.app)

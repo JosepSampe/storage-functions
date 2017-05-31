@@ -5,9 +5,9 @@ from swift.common.utils import public
 
 class ComputeHandler(BaseHandler):
 
-    def __init__(self, request, conf, app, logger):
+    def __init__(self, request, conf, app, logger, redis):
         super(ComputeHandler, self).__init__(
-            request, conf, app, logger)
+            request, conf, app, logger, redis)
 
     def _parse_vaco(self):
         return self.req.split_path(3, 4, rest_with_last=True)
@@ -33,6 +33,7 @@ class ComputeHandler(BaseHandler):
         GET handler on Compute node
         """
         self.response = self.req.get_response(self.app)
+        # self.response = Response(body="Test", headers=self.req.headers)
         self.apply_function_onget()
 
         return self.response

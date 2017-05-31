@@ -1,0 +1,32 @@
+<project>
+
+	<target name="compile">
+		<mkdir dir="build" />
+		<javac srcdir="src/com/urv/blackeagle/function/none/" destdir="build" includeantruntime="false">
+			<classpath>
+		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+			</classpath>		
+		</javac>
+	    <jar destfile="build/none-1.0.jar"
+	        basedir="build"
+	     	includes="com/urv/blackeagle/function/none/*">
+	    </jar>
+	</target>
+	
+	<target name="pack" depends="compile">
+		<delete dir="bin" />
+		<mkdir dir="bin" />
+		<tar destfile = "bin/none.tar.gz" compression="gzip">
+			<tarfileset dir="build">
+			        <include name="none-1.0.jar"/>
+			</tarfileset>
+			<tarfileset dir=".">
+			        <include name="lib/*.jar"/>
+			</tarfileset>
+		</tar>
+		<delete dir="build" />
+	</target>
+
+	<target name="build" depends="compile, pack"/>
+
+</project>

@@ -1,7 +1,7 @@
 from blackeagle.gateways.docker.bus import Bus
 from blackeagle.gateways.docker.datagram import Datagram
 import shutil
-import errno
+import random
 import os
 
 
@@ -15,20 +15,45 @@ class Worker(object):
         self.scope = scope
         self.redis = redis
         self.function = function
+        self.logger = be.logger
         self.function_name = function.get_name()
+        self.function_obj = function.get_obj_name()
+        self.worker_key = os.path.join(self.scope, self.function_obj)
         # Dirs
         self.main_dir = self.conf["main_dir"]
         self.workers_dir = self.conf["workers_dir"]
         self.docker_dir = self.conf["docker_pool_dir"]
 
-        self._get_available_docker()
-        self._link_worker_to_docker()
-        self._link_worker_to_function()
-        self._execute()
+        if not self._get_available_worker():
+            self._get_available_docker()
+            self._link_worker_to_docker()
+            self._link_worker_to_function()
+            self._execute()
+
+    def _get_available_worker(self):
+        worker_path = os.path.join(self.main_dir, self.workers_dir,
+                                   self.scope, self.function_name)
+        self.worker_channel = None
+        if os.path.exists(worker_path):
+            workers = os.listdir(worker_path)
+            worker = random.sample(workers, 1)[0]
+            self.worker_channel = os.path.join(worker_path, worker, 'channel', 'pipe')
+
+        if self.worker_channel:
+            self.logger.info("There are available workers: "+self.function_obj)
+            return True
+        else:
+            self.logger.info("There are no available workers: "+self.function_obj)
+            return False
 
     def _get_available_docker(self):
-        # self.docker_id = self.redis.lpop('available_dockers')
-        self.docker_id = "zion_0"
+        self.docker_id = self.redis.lpop('available_dockers')
+        if self.docker_id:
+            self.logger.info("Got docker: '"+self.docker_id+"' from docker pool")
+        else:
+            msg = "No dockers available in the docker pool"
+            self.logger.error(msg)
+            raise ValueError(msg)
 
     def _link_worker_to_docker(self):
         self.worker_path = os.path.join(self.main_dir, self.workers_dir,
@@ -70,7 +95,6 @@ class Worker(object):
         self.function.open_log()
         self.fds.append(self.function.get_logfd())
         md = dict()
-        md['type'] = 4
         md['function'] = self.function.get_obj_name()
         md['main_class'] = self.function.get_main_class()
         self.fdmd.append(md)
@@ -85,6 +109,7 @@ class Worker(object):
         rc = Bus.send(channel, dtg)
         if (rc < 0):
             raise Exception("Failed to send execute command")
+        self.function.close_log()
 
     def get_channel(self):
         return self.worker_channel
