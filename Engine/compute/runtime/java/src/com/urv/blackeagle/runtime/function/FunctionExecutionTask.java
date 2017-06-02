@@ -5,10 +5,13 @@ import com.ibm.storlet.sbus.SBusDatagram;
 import com.urv.blackeagle.runtime.api.Api;
 import com.urv.blackeagle.runtime.context.Context;
 
+import redis.clients.jedis.Jedis;
+
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -18,9 +21,11 @@ import org.slf4j.Logger;
 
 public class FunctionExecutionTask implements Runnable {
 	private Logger logger_;
+	private Properties prop_;
 	private Function function_;
 	private SBusDatagram dtg_;
 	private FileOutputStream functionLog_;
+	private Jedis redis_;
 	
 	private Context ctx;
 	private Api api;
@@ -36,11 +41,13 @@ public class FunctionExecutionTask implements Runnable {
 	/*------------------------------------------------------------------------
 	 * CTOR
 	 * */
-	public FunctionExecutionTask(SBusDatagram dtg, Function function, FileOutputStream functionLog, Logger logger) {
+	public FunctionExecutionTask(SBusDatagram dtg, Properties prop, Jedis redis, Function function, FileOutputStream functionLog, Logger logger) {
 		this.dtg_ = dtg;
+		this.prop_ = prop;
 		this.function_ = function;
 		this.logger_ = logger;
 		this.functionLog_ = functionLog;
+		this.redis_ = redis;
 		
 		
 		logger_.trace("Function execution task created");	
@@ -75,7 +82,7 @@ public class FunctionExecutionTask implements Runnable {
 		metadata = null;
 		logger_.trace("Got object input stream, request headers, object metadata and function parameters");
 		
-		this.api = new Api(request_headers, logger_);
+		this.api = new Api(redis_, prop_, request_headers, logger_);
 		this.ctx = new Context(inputStreamFd, outputStreamFd, functionParameters, functionLog_, commandFd, 
 						  	   object_metadata, request_headers, logger_, api.swift);
 	}

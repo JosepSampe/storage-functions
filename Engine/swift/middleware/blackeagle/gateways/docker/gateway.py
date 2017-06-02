@@ -1,9 +1,7 @@
 from blackeagle.gateways.docker.protocol import Protocol
 from blackeagle.gateways.docker.function import Function
 from blackeagle.gateways.docker.worker import Worker
-import pickle
 import time
-import os
 
 
 class DockerGateway():
@@ -60,19 +58,26 @@ class DockerGateway():
         time1 = time.time()
         function = Function(self.be, self.scope, f_name)
         time2 = time.time()
-        print '------ FUNCTION took %0.6f s' % ((time2-time1))
+        fc = time2-time1
+        # print '------ FUNCTION took %0.6f s' % ((time2-time1))
 
         time1 = time.time()
         worker = Worker(self.be, self.scope, self.redis, function)
         time2 = time.time()
-        print '------ WORKER took %0.6f s' % ((time2-time1))
+        wkr = time2-time1
+        # print '------ WORKER took %0.6f s' % ((time2-time1))
 
         time1 = time.time()
         protocol = Protocol(worker, object_stream, object_metadata,
                             request_headers, function_parameters, self.be)
         resp = protocol.comunicate()
         time2 = time.time()
-        print '----- PROTOCOL took %0.6f s' % ((time2-time1))
+        ptc = time2-time1
+        # print '----- PROTOCOL took %0.6f s' % ((time2-time1))
+
+        fl = open("/tmp/zion.times", "a")
+        fl.write("%0.6f\t%0.6f\t%0.6f\n" % ((fc, wkr, ptc)))
+        fl.close()
 
         # return {"command": "RC"}
         return resp

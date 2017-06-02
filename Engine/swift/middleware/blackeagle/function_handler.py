@@ -42,15 +42,12 @@ class FunctionHandlerMiddleware(object):
             handler = self.handler_class(req, self.conf, self.app, self.logger, r)
             self.logger.debug('%s call in %s' % (req.method, req.path))
 
-            
-
+            return handler.handle_request()
         except NotFunctionRequest:
             self.logger.debug('No Blackeagle Request, bypassing middleware')
             return req.get_response(self.app)
         except Exception as exception:
             raise exception
-        
-        return handler.handle_request()
 
 
 def filter_factory(global_conf, **local_conf):
@@ -81,7 +78,7 @@ def filter_factory(global_conf, **local_conf):
     conf['default_function_memory'] = int(conf.get('default_function_memory', 1024))
     conf['max_function_memory'] = int(conf.get('max_function_memory', 1024))
     # Compute Nodes
-    conf['compute_nodes'] = conf.get('compute_nodes', '192.168.2.31:8080')
+    conf['compute_nodes'] = conf.get('compute_nodes', '192.168.2.30:8585')
     conf['docker_pool_dir'] = conf.get('docker_pool_dir', 'docker_pool')
 
     def swift_functions(app):

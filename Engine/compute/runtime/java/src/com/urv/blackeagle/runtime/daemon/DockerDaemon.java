@@ -1,15 +1,18 @@
 package com.urv.blackeagle.runtime.daemon;
 
 import java.io.FileDescriptor;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Level;
+import redis.clients.jedis.Jedis;
 import com.ibm.storlet.sbus.*;
 import com.urv.blackeagle.runtime.function.Function;
 import com.urv.blackeagle.runtime.function.FunctionExecutionTask;
 import java.util.HashMap;
-
+import java.util.Properties;
 
 
 /*----------------------------------------------------------------------------
@@ -22,6 +25,13 @@ public class DockerDaemon {
 	private static SBus bus_;
 	private static Function function_ = null;
 	private static FileOutputStream functionLog_;
+	
+	private static String configFile = "/opt/zion/config/worker.config";
+	private static Properties prop_;
+	private static String host;
+	private static int redisPort;
+	private static int redisDatabase;
+	private static Jedis redis_ = null;
 
 	/*------------------------------------------------------------------------
 	 * initLog
@@ -72,14 +82,31 @@ public class DockerDaemon {
 		System.out.println("Instanciating Bus");
 		bus_ = new SBus(strContId);
 		
-		//System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+		try{
+			logger_.trace("Loading configuration file "+configFile);
+			prop_ = new Properties();
+			InputStream is = new FileInputStream(configFile);
+			prop_.load(is);
+			
+			host = prop_.getProperty("host_ip");
+			redisPort = Integer.parseInt(prop_.getProperty("redis_port"));
+			redisDatabase = Integer.parseInt(prop_.getProperty("redis_db"));
+			
+		} catch (IOException e) {
+			logger_.error("Failed to load the configuration file: "+configFile);
+			return;
+		}
+
+		
+		redis_ = new Jedis(host,redisPort);
+		redis_.select(redisDatabase);
 
 		try {
-			logger_.trace("Initialising Swift bus "+strBusPath);
-			System.out.println("Initialising Swift bus "+strBusPath);
+			logger_.trace("Initialising Swift bus: "+strBusPath);
+			System.out.println("Initialising Swift bus: "+strBusPath);
 			bus_.create(strBusPath);
 		} catch (IOException e) {
-			logger_.error("Failed to create Swift and API Bus");
+			logger_.error("Failed to create Swift Bus");
 			return;
 		}
 	}
@@ -98,7 +125,7 @@ public class DockerDaemon {
 				bus_.listen();
 				logger_.trace("Bus listen() returned");
 			} catch (IOException e) {
-				logger_.error("Failed to listen on Bus");
+				logger_.error("Failed to listen on Bus. Exiting");
 				doContinue = false;
 				break;
 			}
@@ -152,7 +179,7 @@ public class DockerDaemon {
 		 */
 		if (command == 3){
 			logger_.trace("Got Function invocation request");
-			FunctionExecutionTask functionTask = new FunctionExecutionTask(dtg, function_, functionLog_, logger_);
+			FunctionExecutionTask functionTask = new FunctionExecutionTask(dtg, prop_, redis_, function_, functionLog_, logger_);
 			new Thread(functionTask).start(); 	
 		}
 	}

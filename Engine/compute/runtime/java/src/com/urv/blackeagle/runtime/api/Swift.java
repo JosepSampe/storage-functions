@@ -1,12 +1,9 @@
 package com.urv.blackeagle.runtime.api;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
@@ -17,11 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
-import java.util.UUID;
-
 import redis.clients.jedis.Jedis;
-import net.spy.memcached.MemcachedClient;
 import org.slf4j.Logger;
 
 
@@ -30,44 +25,29 @@ public class Swift {
 	private String token;
 	private String storageUrl;
 	private String tenantId;
-	private List<String> unnecessaryHeaders = Arrays.asList(null, "Connection", "X-Trans-Id", "Date");
-	
-	private String swiftBackend = "http://192.168.2.1:8080/v1/"; // TODO: get from cofig file
-	private String redisHost = "192.168.2.1"; // TODO: get from cofig file
-	private int redisPort = 6379; // TODO: get from cofig file
-	private int redisDefaultDatabase = 10; // TODO: get from cofig file
-	private String memcachedHost = "192.168.2.1"; // TODO: get from cofig file
-	private int memcachedPort = 11211; // TODO: get from cofig file
-	
-	private Jedis redis = null;
-	private MemcachedClient mc = null;
+	private Jedis redis;
 	public Metadata metadata;
+	
+	private List<String> unnecessaryHeaders = Arrays.asList(null, "Connection", "X-Trans-Id", "Date");
 	Map<String, Map<String, String>> objectMetadata = new HashMap<String, Map<String, String>>();
 	private boolean dirtyBit = false;
 
-	public Swift(String strToken, String projectId, Logger logger) {
+	public Swift(Jedis r, Properties prop, String strToken, String projectId, Logger logger) {
 		token = strToken;
 		tenantId = projectId;
-		storageUrl = swiftBackend+"AUTH_"+projectId+"/";
 		logger_ = logger;
+		redis = r;
 
-		redis = new Jedis(redisHost,redisPort);
-		redis.select(redisDefaultDatabase);
-		
+		String swift_host = prop.getProperty("host_ip");
+		String swift_port = prop.getProperty("swift_port");
+		storageUrl =  "http://"+swift_host+swift_port+"/v1/AUTH_"+projectId+"/";
 		metadata = new Metadata();
-		/*
-		try {
-			mc = new MemcachedClient(new InetSocketAddress(memcachedHost, memcachedPort));
-		} catch (IOException e) {
-			logger_.trace("Failed to create Memcached client");
-		}*/
-		
+
 		logger_.info("API Swift created");
 	}
 	
 	public void close(){
-		redis.close();
-		//mc.shutdown();		
+		//redis.close();		
 	}
 
 	public class Metadata { 
@@ -232,14 +212,7 @@ public class Swift {
 			logger_.info("Moving "+source+" object to "+dest);
 		}
 	}
-	
-	public void prefetch(String source, String data){
-		String id =  "AUTH_"+tenantId+"/"+source;
-		logger_.info("Prefetching "+id);
-		String hash = MD5(id);
-		//mc.set(hash, 600, data);
-	}	
-	
+		
 	public void prefetch(String source){
 		HttpURLConnection conn = newConnection(source);
 		conn.setRequestProperty("X-Object-Prefetch","True");

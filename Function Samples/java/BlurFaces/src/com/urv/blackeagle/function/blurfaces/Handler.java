@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.UUID;
 
 import org.apache.commons.io.FileUtils;
+import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Rect;
@@ -24,6 +25,10 @@ import com.urv.blackeagle.runtime.context.Context;
 import com.urv.blackeagle.runtime.function.IFunction;
 
 public class Handler implements IFunction {
+	
+	public Handler(){
+		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+	}
 	
 	/***
 	 * function entry method. 
