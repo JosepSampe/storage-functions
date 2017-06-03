@@ -75,8 +75,10 @@ class DockerGateway():
         ptc = time2-time1
         # print '----- PROTOCOL took %0.6f s' % ((time2-time1))
 
+        total = fc + wkr + ptc
+
         fl = open("/tmp/zion.times", "a")
-        fl.write("%0.6f\t%0.6f\t%0.6f\n" % ((fc, wkr, ptc)))
+        fl.write("%0.6f\t%0.6f\t%0.6f : \t%0.6f\n" % ((fc, wkr, ptc, total)))
         fl.close()
 
         # return {"command": "RC"}

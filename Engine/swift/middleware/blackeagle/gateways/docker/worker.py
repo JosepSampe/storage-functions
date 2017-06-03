@@ -1,7 +1,6 @@
 from blackeagle.gateways.docker.bus import Bus
 from blackeagle.gateways.docker.datagram import Datagram
 import shutil
-import random
 import os
 
 
@@ -18,7 +17,7 @@ class Worker(object):
         self.logger = be.logger
         self.function_name = function.get_name()
         self.function_obj = function.get_obj_name()
-        self.worker_key = os.path.join(self.scope, self.function_obj)
+        self.worker_key = os.path.join('workers', self.scope, self.function_name)
         # Dirs
         self.main_dir = self.conf["main_dir"]
         self.workers_dir = self.conf["workers_dir"]
@@ -31,15 +30,12 @@ class Worker(object):
             self._execute()
 
     def _get_available_worker(self):
-        worker_path = os.path.join(self.main_dir, self.workers_dir,
-                                   self.scope, self.function_name)
-        self.worker_channel = None
-        if os.path.exists(worker_path):
-            workers = os.listdir(worker_path)
-            worker = random.sample(workers, 1)[0]
-            self.worker_channel = os.path.join(worker_path, worker, 'channel', 'pipe')
-
-        if self.worker_channel:
+        docker_id = self.redis.zrange(self.worker_key, 0, 0)
+        if docker_id:
+            docker_id = docker_id[0]
+            worker_path = os.path.join(self.main_dir, self.workers_dir,
+                                       self.scope, self.function_name, docker_id)
+            self.worker_channel = os.path.join(worker_path, 'channel', 'pipe')
             self.logger.info("There are available workers: "+self.function_obj)
             return True
         else:
@@ -49,7 +45,7 @@ class Worker(object):
     def _get_available_docker(self):
         self.docker_id = self.redis.lpop('available_dockers')
         if self.docker_id:
-            self.logger.info("Got docker: '"+self.docker_id+"' from docker pool")
+            self.logger.info("Got docker '"+self.docker_id+"' from docker pool")
         else:
             msg = "No dockers available in the docker pool"
             self.logger.error(msg)
@@ -72,6 +68,8 @@ class Worker(object):
             os.symlink(docker_path, worker_docker_link)
 
         self.worker_channel = os.path.join(worker_docker_link, 'channel', 'pipe')
+
+        self.redis.zadd(self.worker_key, self.docker_id, 0)
 
     def _link_worker_to_function(self):
         function_bin_path = self.function.get_bin_path()

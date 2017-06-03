@@ -3,7 +3,7 @@ from swift.common.utils import get_logger
 from blackeagle.handlers import ProxyHandler
 from blackeagle.handlers import ComputeHandler
 from blackeagle.handlers.base import NotFunctionRequest
-import redis, time
+import redis
 
 
 class FunctionHandlerMiddleware(object):
@@ -15,8 +15,13 @@ class FunctionHandlerMiddleware(object):
         self.logger = get_logger(conf, name=self.exec_server +
                                  "-server Blackeagle",
                                  log_route='function_handler')
-        self.redis_sock = self.conf.get('redis_sock')
-        self.redis_db = self.conf.get('redis_db')
+        redis_host = self.conf.get('redis_host')
+        redis_port = self.conf.get('redis_port')
+        redis_db = self.conf.get('redis_db')
+        self.redis_conn_pool = redis.ConnectionPool(host=redis_host,
+                                                    port=redis_port,
+                                                    db=redis_db)
+
         self.handler_class = self._get_handler(self.exec_server)
 
     def _get_handler(self, exec_server):
@@ -38,7 +43,7 @@ class FunctionHandlerMiddleware(object):
     @wsgify
     def __call__(self, req):
         try:
-            r = redis.StrictRedis(unix_socket_path=self.redis_sock, db=self.redis_db)
+            r = redis.Redis(connection_pool=self.redis_conn_pool)
             handler = self.handler_class(req, self.conf, self.app, self.logger, r)
             self.logger.debug('%s call in %s' % (req.method, req.path))
 
@@ -71,7 +76,6 @@ def filter_factory(global_conf, **local_conf):
     # Redis metastore
     conf['redis_host'] = conf.get('redis_host', 'localhost')
     conf['redis_port'] = int(conf.get('redis_port', 6379))
-    conf['redis_sock'] = conf.get('redis_sock', '/var/run/redis/redis.sock')
     conf['redis_db'] = int(conf.get('redis_db', 10))
     # Function defaults
     conf['default_function_timeout'] = int(conf.get('default_function_timeout', 10))
