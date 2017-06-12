@@ -3,6 +3,8 @@ from gevent import Greenlet
 from docker.errors import NotFound
 from gevent.timeout import Timeout
 from subprocess import Popen
+from bus import Bus
+from datagram import Datagram
 import shutil
 import gevent
 import logging
@@ -18,11 +20,12 @@ import os
 
 TOTAL_CPUS = psutil.cpu_count()
 REDIS_CONN_POOL = redis.ConnectionPool(host='localhost', port=6379, db=10)
-CPU_THRESHOLD = 30
+CPU_THRESHOLD = 20
 WORKERS = 2
 ZION_DIR = '/opt/zion'
 MAIN_DIR = '/home/docker_device/blackeagle/'
 WORKERS_DIR = MAIN_DIR+'workers/'
+FUNCTIONS_DIR = MAIN_DIR+'functions/'
 POOL_DIR = MAIN_DIR+'docker_pool/'
 DOCKER_IMAGE = '192.168.2.1:5001/blackeagle'
 
@@ -49,20 +52,22 @@ swift_gid = shutil._get_gid('swift')
 
 class Container(Greenlet):
 
-    def __init__(self, cid, monitoring):
+    def __init__(self, cid):
         Greenlet.__init__(self)
         self.id = str(cid)
         self.name = "zion_"+str(cid)
-        self.monitoring = monitoring
         self.status = "free"
-        self.contaoner = None
+        self.container = None
         self.docker_dir = POOL_DIR+self.name
         self.channel_dir = self.docker_dir+'/channel'
-        self.function_dir = self.docker_dir+'/function'
         self.r = redis.Redis(connection_pool=REDIS_CONN_POOL)
         self.c = docker.from_env()
 
+        self.function = None
+        self.monitoing_info = None
+
         self._create_directory_structure()
+        self._start_container()
 
     def _create_directory_structure(self):
         logger.info("Creating container structure: "+self.docker_dir)
@@ -71,8 +76,6 @@ class Container(Greenlet):
             p.wait()
             os.makedirs(self.channel_dir)
             os.chown(self.channel_dir, swift_uid, swift_gid)
-            os.makedirs(self.function_dir)
-            os.chown(self.function_dir, swift_uid, swift_gid)
 
     def _start_container(self):
         logger.info("Starting container: "+self.name)
@@ -84,61 +87,56 @@ class Container(Greenlet):
         self.r.rpush("available_dockers", self.name)
 
     def _run(self):
-        self._start_container()
-        while True:
-            gevent.sleep(1)
-        """
         try:
-            for stats in c.api.stats(c_name, decode=True):
+            for stats in self.c.api.stats(self.name, decode=True):
                 try:
                     cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \
                         stats["precpu_stats"]["cpu_usage"]["total_usage"]
                     system_delta = stats["cpu_stats"]["system_cpu_usage"] - \
                         stats["precpu_stats"]["system_cpu_usage"]
                     total_cpu_usage = cpu_delta / float(system_delta) * 100 * TOTAL_CPUS
-                    monitoring_info[redis_key][c_name] = float("{0:.2f}".format(total_cpu_usage))
+                    self.monitoring_info[self.function][self.name] = float("{0:.2f}".format(total_cpu_usage))
                     gevent.sleep(0)
                 except:
                     pass
-            r.zrem(redis_key, c_name)
-            del monitoring_info[redis_key]
-            logger.error('404 Client Error: Not Found ("No such container: '+c_name+'")')
+            msg = '404 Client Error: Not Found ("No such container: '+self.name+'")'
+            self.stop(msg)
         except NotFound as e:
-            r.zrem(redis_key, c_name)
-            del monitoring_info[redis_key]
-            logger.error(str(e))
+            self.stop(e)
         except KeyboardInterrupt:
+            self.stop('Keyboard Interrupt')
             exit()
-        """
+
+    def load_function(self, function, worker_dir):
+        _, tenant, function = function.split('/')
+        logger.info("Loading Function '"+function+"' to docker "+self.name)
+        function_bin_path = os.path.join(FUNCTIONS_DIR, tenant, 'bin', function)
+        worker_function_path = os.path.join(worker_dir, 'function')
+        p = Popen(['cp', '-p', '-R', function_bin_path, worker_function_path])
+        p.wait()
+
+    def stop(self, message):
+        self.r.zrem(self.function, self.name)
+        del self.monitoring_info[self.function]
+        self.container.remove(force=True)
+        logger.error(message)
 
 
-def monitor_container_cpu(c_name, redis_key, monitoring_info):
+def start_new_worker(containers, function):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
-    c = docker.from_env()
-    try:
-        for stats in c.api.stats(c_name, decode=True):
-            try:
-                cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \
-                    stats["precpu_stats"]["cpu_usage"]["total_usage"]
-                system_delta = stats["cpu_stats"]["system_cpu_usage"] - \
-                    stats["precpu_stats"]["system_cpu_usage"]
-                total_cpu_usage = cpu_delta / float(system_delta) * 100 * TOTAL_CPUS
-                monitoring_info[redis_key][c_name] = float("{0:.2f}".format(total_cpu_usage))
-                gevent.sleep(0)
-            except:
-                pass
-        r.zrem(redis_key, c_name)
-        del monitoring_info[redis_key]
-        logger.error('404 Client Error: Not Found ("No such container: '+c_name+'")')
-    except NotFound as e:
-        r.zrem(redis_key, c_name)
-        del monitoring_info[redis_key]
-        logger.error(str(e))
-    except KeyboardInterrupt:
-        exit()
+    docker_id = r.lpop('available_dockers')
+    if docker_id:
+        logger.info("Starting new Function worker for: "+function)
+        c_id = int(docker_id.replace('zion_', ''))
+        worker_dir = os.path.join(MAIN_DIR, function, docker_id)
+        p = Popen(['ln', '-s', POOL_DIR+docker_id, worker_dir])
+        p.wait()
+        container = containers[c_id]
+        container.load_function(function, worker_dir)
+        r.zadd(function, docker_id, 0)
 
 
-def monitoring_info_auditor(monitoring_info):
+def monitoring_info_auditor(containers, monitoring_info):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
     try:
         while True:
@@ -147,28 +145,34 @@ def monitoring_info_auditor(monitoring_info):
                 continue
             logger.info(monitoring_info)
             for function in monitoring_info:
+                function_cpu_usage = 0
                 workers = monitoring_info[function]
                 sorted_workers = sorted(workers.items(), key=operator.itemgetter(1))
                 for worker in sorted_workers:
                     docker = worker[0]
-                    cpu_usage = worker[1]
-                    r.zadd(function, docker, cpu_usage)
+                    worker_cpu_usage = worker[1]
+                    function_cpu_usage += worker[1]
+                    r.zadd(function, docker, worker_cpu_usage)
+                mean_fucntion_cpu_usage = function_cpu_usage / len(workers)
+                if mean_fucntion_cpu_usage > CPU_THRESHOLD:
+                    start_new_worker(containers, function)
             gevent.sleep(0)
     except KeyboardInterrupt:
         exit()
 
 
-def monitoring():
+def monitoring(containers):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
     monitoring_info = dict()
     threads = list()
 
+    logger.info("Starting monitoring thread")
     # Check monitoring info, and spawn new workers
-    threads.append(Greenlet.spawn(monitoring_info_auditor, monitoring_info))
+    threads.append(Greenlet.spawn(monitoring_info_auditor, containers, monitoring_info))
 
     try:
         while True:
-            # Check for new workers, and spawn container monitoring
+            # Check for new workers
             functions = r.keys('workers*')
             if not functions:
                 gevent.sleep(1)
@@ -179,11 +183,14 @@ def monitoring():
                     monitoring_info[function] = dict()
                 for worker in workers:
                     if worker not in monitoring_info[function]:
+                        c_id = int(worker.replace('zion_', ''))
                         monitoring_info[function][worker] = 0
-                        threads.append(Greenlet.spawn(monitor_container_cpu,
-                                                      worker,
-                                                      function,
-                                                      monitoring_info))
+                        container = containers[c_id]
+                        # Start monitoring of container
+                        container.function = function
+                        container.monitoring_info = monitoring_info
+                        container.start()
+
             gevent.sleep(0)
     except KeyboardInterrupt:
             exit()
@@ -206,7 +213,7 @@ def stop_containers():
         shutil.rmtree(POOL_DIR)
 
 
-def start_containers(containers, monitoring):
+def start_containers(containers):
     if not os.path.exists(WORKERS_DIR):
         os.makedirs(WORKERS_DIR)
     os.chown(WORKERS_DIR, swift_uid, swift_gid)
@@ -214,23 +221,21 @@ def start_containers(containers, monitoring):
         os.makedirs(POOL_DIR)
     os.chown(POOL_DIR, swift_uid, swift_gid)
     for cid in range(WORKERS):
-        worker = Container(cid, monitoring)
-        containers.append(worker)
-        worker.start()
+        worker = Container(cid)
+        containers[cid] = worker
 
 
 def main():
-    containers = list()
-    monitoring = dict()
+    containers = dict()
     # Kill all already started Zion containers
     stop_containers()
     # Start base containers
-    start_containers(containers, monitoring)
+    start_containers(containers)
     # Start monitoring
-    # containers.append(Greenlet.spawn(monitoring))
+    monitor = Greenlet.spawn(monitoring, containers)
 
     try:
-        gevent.joinall(containers)
+        gevent.joinall([monitor])
     except KeyboardInterrupt:
         exit()
 
