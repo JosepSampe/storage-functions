@@ -1,6 +1,5 @@
 from swift.common.exceptions import DiskFileXattrNotSupported, \
     DiskFileNoSpace, DiskFileNotExist
-from swift.obj.diskfile import _get_filename
 from eventlet import Timeout
 import xattr
 import select
@@ -36,7 +35,7 @@ def read_metadata(fd, md_key=None):
         for err in 'ENOTSUP', 'EOPNOTSUPP':
             if hasattr(errno, err) and e.errno == getattr(errno, err):
                 msg = "Filesystem at %s does not support xattr" % \
-                      _get_filename(fd)
+                      get_filename(fd)
                 logging.exception(msg)
                 raise DiskFileXattrNotSupported(e)
         if e.errno == errno.ENOENT:
@@ -66,11 +65,11 @@ def write_metadata(fd, metadata, xattr_size=65536, md_key=None):
             for err in 'ENOTSUP', 'EOPNOTSUPP':
                 if hasattr(errno, err) and e.errno == getattr(errno, err):
                     msg = "Filesystem at %s does not support xattr" % \
-                          _get_filename(fd)
+                          get_filename(fd)
                     logging.exception(msg)
                     raise DiskFileXattrNotSupported(e)
             if e.errno in (errno.ENOSPC, errno.EDQUOT):
-                msg = "No space left on device for %s" % _get_filename(fd)
+                msg = "No space left on device for %s" % get_filename(fd)
                 logging.exception(msg)
                 raise DiskFileNoSpace()
             raise
@@ -119,6 +118,22 @@ def close_data_file(fd):
     :param fd: file descriptor
     """
     os.close(fd)
+
+
+def get_filename(fd):
+    """
+    Helper function to get to file name from a file descriptor or filename.
+
+    :param fd: file descriptor or filename.
+
+    :returns: the filename.
+    """
+    if hasattr(fd, 'name'):
+        # fd object
+        return fd.name
+
+    # fd is a filename
+    return fd
 
 
 class DataFdIter(object):

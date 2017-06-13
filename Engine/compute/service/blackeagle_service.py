@@ -1,10 +1,13 @@
+from blackeagle.common.utils import get_object_metadata
+#from blackeagle.gateways.docker.bus import Bus
+#from blackeagle.gateways.docker.datagram import Datagram
+from bus import Bus
+from datagram import Datagram
 from daemonize import Daemonize
 from gevent import Greenlet
 from docker.errors import NotFound
 from gevent.timeout import Timeout
 from subprocess import Popen
-from bus import Bus
-from datagram import Datagram
 import shutil
 import gevent
 import logging
@@ -18,17 +21,23 @@ import sys
 import os
 
 
-TOTAL_CPUS = psutil.cpu_count()
 REDIS_CONN_POOL = redis.ConnectionPool(host='localhost', port=6379, db=10)
-CPU_THRESHOLD = 20
-WORKERS = 2
+# CPU
+TOTAL_CPUS = psutil.cpu_count()
+HIGH_CPU_THRESHOLD = 90
+LOW_CPU_THRESHOLD = 0.10
+TOTAL_WORKERS = 2
+# DIRS
 ZION_DIR = '/opt/zion'
 MAIN_DIR = '/home/docker_device/blackeagle/'
 WORKERS_DIR = MAIN_DIR+'workers/'
 FUNCTIONS_DIR = MAIN_DIR+'functions/'
 POOL_DIR = MAIN_DIR+'docker_pool/'
 DOCKER_IMAGE = '192.168.2.1:5001/blackeagle'
-
+# Headers
+TIMEOUT_HEADER = "X-Object-Meta-Function-Timeout"
+MEMORY_HEADER = "X-Object-Meta-Function-Memory"
+MAIN_HEADER = "X-Object-Meta-Function-Main"
 # create logger with 'be_service'
 logger = logging.getLogger('be_service')
 logger.setLevel(logging.DEBUG)
@@ -104,16 +113,52 @@ class Container(Greenlet):
         except NotFound as e:
             self.stop(e)
         except KeyboardInterrupt:
-            self.stop('Keyboard Interrupt')
             exit()
 
     def load_function(self, function, worker_dir):
-        _, tenant, function = function.split('/')
+        # move function to docker directory
+        _, scope, function = function.split('/')
         logger.info("Loading Function '"+function+"' to docker "+self.name)
-        function_bin_path = os.path.join(FUNCTIONS_DIR, tenant, 'bin', function)
+        bin_function_path = os.path.join(FUNCTIONS_DIR, scope, 'bin', function)
         worker_function_path = os.path.join(worker_dir, 'function')
-        p = Popen(['cp', '-p', '-R', function_bin_path, worker_function_path])
+        p = Popen(['cp', '-p', '-R', bin_function_path, worker_function_path])
         p.wait()
+
+        function_obj_name = function+'.tar.gz'
+        cached_function_obj = os.path.join(FUNCTIONS_DIR, scope, 'cache', function_obj_name)
+        function_metadata = get_object_metadata(cached_function_obj)
+
+        if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in \
+           function_metadata or MAIN_HEADER not in function_metadata:
+            raise ValueError("Error Getting Function memory and timeout values")
+        else:
+            memory = int(function_metadata[MEMORY_HEADER])
+            main_class = function_metadata[MAIN_HEADER]
+
+        function_log_name = function+'.log'
+        function_log_obj = os.path.join(FUNCTIONS_DIR, scope, 'logs', function, function_log_name)
+        function_log = open(function_log_obj, 'a')
+
+        # Execute function
+        self.fds = list()
+        self.fdmd = list()
+        self.fds.append(function_log)
+        md = dict()
+        md['function'] = function+'.tar.gz'
+        md['main_class'] = main_class
+        self.fdmd.append(md)
+        dtg = Datagram()
+        dtg.set_files(self.fds)
+        dtg.set_metadata(self.fdmd)
+        dtg.set_command(1)
+        # Send datagram to function worker
+        channel = os.path.join(self.channel_dir, 'pipe')
+        rc = Bus.send(channel, dtg)
+        if (rc < 0):
+            raise Exception("Failed to send execute command")
+        function_log.close()
+
+        # TODO: Update docker memory
 
     def stop(self, message):
         self.r.zrem(self.function, self.name)
@@ -122,7 +167,7 @@ class Container(Greenlet):
         logger.error(message)
 
 
-def start_new_worker(containers, function):
+def start_worker(containers, function):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
     docker_id = r.lpop('available_dockers')
     if docker_id:
@@ -136,29 +181,42 @@ def start_new_worker(containers, function):
         r.zadd(function, docker_id, 0)
 
 
+def stop_worker(containers, function):
+    r = redis.Redis(connection_pool=REDIS_CONN_POOL)
+    # TODO: Stop one worker
+
+
 def monitoring_info_auditor(containers, monitoring_info):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
-    try:
-        while True:
-            if not monitoring_info:
-                gevent.sleep(1)
-                continue
-            logger.info(monitoring_info)
-            for function in monitoring_info:
-                function_cpu_usage = 0
-                workers = monitoring_info[function]
-                sorted_workers = sorted(workers.items(), key=operator.itemgetter(1))
-                for worker in sorted_workers:
-                    docker = worker[0]
-                    worker_cpu_usage = worker[1]
-                    function_cpu_usage += worker[1]
-                    r.zadd(function, docker, worker_cpu_usage)
-                mean_fucntion_cpu_usage = function_cpu_usage / len(workers)
-                if mean_fucntion_cpu_usage > CPU_THRESHOLD:
-                    start_new_worker(containers, function)
-            gevent.sleep(0)
-    except KeyboardInterrupt:
-        exit()
+
+    while True:
+        if not monitoring_info:
+            gevent.sleep(1)
+            continue
+        logger.info(monitoring_info)
+        for function in monitoring_info:
+            function_cpu_usage = 0
+            workers = monitoring_info[function]
+            total_function_workers = len(workers)
+            sorted_workers = sorted(workers.items(), key=operator.itemgetter(1))
+            for worker in sorted_workers:
+                docker = worker[0]
+                worker_cpu_usage = worker[1]
+                function_cpu_usage += worker_cpu_usage
+                r.zadd(function, docker, worker_cpu_usage)
+            mean_fucntion_cpu_usage = function_cpu_usage / total_function_workers
+
+            if mean_fucntion_cpu_usage > HIGH_CPU_THRESHOLD:
+                start_worker(containers, function)
+
+            if total_function_workers > 1 and function_cpu_usage < (total_function_workers*100):
+                stop_worker(containers, function)
+
+            if total_function_workers == 1 and function_cpu_usage < LOW_CPU_THRESHOLD:
+                pass
+                # TODO: prepare 2 minutes timeout
+
+        gevent.sleep(0)
 
 
 def monitoring(containers):
@@ -170,30 +228,27 @@ def monitoring(containers):
     # Check monitoring info, and spawn new workers
     threads.append(Greenlet.spawn(monitoring_info_auditor, containers, monitoring_info))
 
-    try:
-        while True:
-            # Check for new workers
-            functions = r.keys('workers*')
-            if not functions:
-                gevent.sleep(1)
-                continue
-            for function in functions:
-                workers = r.zrange(function, 0, -1)
-                if function not in monitoring_info:
-                    monitoring_info[function] = dict()
-                for worker in workers:
-                    if worker not in monitoring_info[function]:
-                        c_id = int(worker.replace('zion_', ''))
-                        monitoring_info[function][worker] = 0
-                        container = containers[c_id]
-                        # Start monitoring of container
-                        container.function = function
-                        container.monitoring_info = monitoring_info
-                        container.start()
+    while True:
+        # Check for new workers
+        functions = r.keys('workers*')
+        if not functions:
+            gevent.sleep(1)
+            continue
+        for function in functions:
+            workers = r.zrange(function, 0, -1)
+            if function not in monitoring_info:
+                monitoring_info[function] = dict()
+            for worker in workers:
+                if worker not in monitoring_info[function]:
+                    c_id = int(worker.replace('zion_', ''))
+                    monitoring_info[function][worker] = 0
+                    container = containers[c_id]
+                    # Start monitoring of container
+                    container.function = function
+                    container.monitoring_info = monitoring_info
+                    container.start()
 
-            gevent.sleep(0)
-    except KeyboardInterrupt:
-            exit()
+        gevent.sleep(0)
 
 
 def stop_containers():
@@ -220,23 +275,24 @@ def start_containers(containers):
     if not os.path.exists(POOL_DIR):
         os.makedirs(POOL_DIR)
     os.chown(POOL_DIR, swift_uid, swift_gid)
-    for cid in range(WORKERS):
+    for cid in range(TOTAL_WORKERS):
         worker = Container(cid)
         containers[cid] = worker
 
 
 def main():
     containers = dict()
-    # Kill all already started Zion containers
-    stop_containers()
-    # Start base containers
-    start_containers(containers)
-    # Start monitoring
-    monitor = Greenlet.spawn(monitoring, containers)
-
     try:
+        # Kill all already started Zion containers
+        stop_containers()
+        # Start base containers
+        start_containers(containers)
+        # Start monitoring
+        monitor = Greenlet.spawn(monitoring, containers)
+
         gevent.joinall([monitor])
     except KeyboardInterrupt:
+        stop_containers()
         exit()
 
 
