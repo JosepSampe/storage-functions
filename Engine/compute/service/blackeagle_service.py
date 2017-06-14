@@ -12,6 +12,7 @@ import shutil
 import gevent
 import logging
 import operator
+import random
 import docker
 import redis
 import psutil
@@ -24,9 +25,10 @@ import os
 REDIS_CONN_POOL = redis.ConnectionPool(host='localhost', port=6379, db=10)
 # CPU
 TOTAL_CPUS = psutil.cpu_count()
-HIGH_CPU_THRESHOLD = 90
+HIGH_CPU_THRESHOLD = 20
 LOW_CPU_THRESHOLD = 0.10
-TOTAL_WORKERS = 2
+WORKERS = 2
+WORKER_TIMEOUT = 20  # seconds
 # DIRS
 ZION_DIR = '/opt/zion'
 MAIN_DIR = '/home/docker_device/blackeagle/'
@@ -65,7 +67,7 @@ class Container(Greenlet):
         Greenlet.__init__(self)
         self.id = str(cid)
         self.name = "zion_"+str(cid)
-        self.status = "free"
+        self.stopped = False
         self.container = None
         self.docker_dir = POOL_DIR+self.name
         self.channel_dir = self.docker_dir+'/channel'
@@ -98,16 +100,17 @@ class Container(Greenlet):
     def _run(self):
         try:
             for stats in self.c.api.stats(self.name, decode=True):
-                try:
-                    cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \
-                        stats["precpu_stats"]["cpu_usage"]["total_usage"]
-                    system_delta = stats["cpu_stats"]["system_cpu_usage"] - \
-                        stats["precpu_stats"]["system_cpu_usage"]
-                    total_cpu_usage = cpu_delta / float(system_delta) * 100 * TOTAL_CPUS
-                    self.monitoring_info[self.function][self.name] = float("{0:.2f}".format(total_cpu_usage))
-                    gevent.sleep(0)
-                except:
-                    pass
+                if not self.stopped:
+                    try:
+                        cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \
+                            stats["precpu_stats"]["cpu_usage"]["total_usage"]
+                        system_delta = stats["cpu_stats"]["system_cpu_usage"] - \
+                            stats["precpu_stats"]["system_cpu_usage"]
+                        total_cpu_usage = cpu_delta / float(system_delta) * 100 * TOTAL_CPUS
+                        self.monitoring_info[self.function][self.name] = float("{0:.2f}".format(total_cpu_usage))
+                    except:
+                        pass
+                gevent.sleep(0)
             msg = '404 Client Error: Not Found ("No such container: '+self.name+'")'
             self.stop(msg)
         except NotFound as e:
@@ -125,7 +128,8 @@ class Container(Greenlet):
         p.wait()
 
         function_obj_name = function+'.tar.gz'
-        cached_function_obj = os.path.join(FUNCTIONS_DIR, scope, 'cache', function_obj_name)
+        cached_function_obj = os.path.join(FUNCTIONS_DIR, scope, 'cache',
+                                           function_obj_name)
         function_metadata = get_object_metadata(cached_function_obj)
 
         if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in \
@@ -136,7 +140,8 @@ class Container(Greenlet):
             main_class = function_metadata[MAIN_HEADER]
 
         function_log_name = function+'.log'
-        function_log_obj = os.path.join(FUNCTIONS_DIR, scope, 'logs', function, function_log_name)
+        function_log_obj = os.path.join(FUNCTIONS_DIR, scope, 'logs', function,
+                                        function_log_name)
         function_log = open(function_log_obj, 'a')
 
         # Execute function
@@ -161,10 +166,14 @@ class Container(Greenlet):
         # TODO: Update docker memory
 
     def stop(self, message):
-        self.r.zrem(self.function, self.name)
-        del self.monitoring_info[self.function]
-        self.container.remove(force=True)
-        logger.error(message)
+        if not self.stopped:
+            self.stopped = True
+            self.r.zrem(self.function, self.name)
+            del self.monitoring_info[self.function][self.name]
+            if len(self.monitoring_info[self.function]) == 0:
+                del self.monitoring_info[self.function]
+            self.container.remove(force=True)
+            logger.warning(message)
 
 
 def start_worker(containers, function):
@@ -181,40 +190,94 @@ def start_worker(containers, function):
         r.zadd(function, docker_id, 0)
 
 
-def stop_worker(containers, function):
-    r = redis.Redis(connection_pool=REDIS_CONN_POOL)
-    # TODO: Stop one worker
+def worker_timeout_checker(containers, workers_to_kill, monitoring_info):
+    while True:
+        if not workers_to_kill:
+            gevent.sleep(1)
+            continue
+        for function in workers_to_kill.keys():
+            workers = workers_to_kill[function]
+            for worker in workers.keys():
+                logger.info(worker+" timeout: "+str(workers[worker]))
+                workers[worker] -= 1
+                if workers[worker] == 0:
+                    docker_id = int(worker.replace('zion_', ''))
+                    docker = containers[docker_id]
+                    docker.stop(function+" worker timeout, killing docker '"+worker+"'")
+                    del workers_to_kill[function][worker]
+                    # docker.regenerate()
+                    # TODO: start_container()
+            if function in workers_to_kill and len(workers_to_kill[function]) == 0:
+                del workers_to_kill[function]
+        gevent.sleep(0)
 
 
 def monitoring_info_auditor(containers, monitoring_info):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
+    workers_to_kill = dict()
+
+    # Worker timeout checker
+    Greenlet.spawn(worker_timeout_checker, containers, workers_to_kill, monitoring_info)
 
     while True:
         if not monitoring_info:
             gevent.sleep(1)
             continue
+
         logger.info(monitoring_info)
+
         for function in monitoring_info:
+            if function not in workers_to_kill:
+                workers_to_kill[function] = dict()
+
             function_cpu_usage = 0
             workers = monitoring_info[function]
             total_function_workers = len(workers)
+            active_function_workers = total_function_workers - len(workers_to_kill[function])
             sorted_workers = sorted(workers.items(), key=operator.itemgetter(1))
             for worker in sorted_workers:
                 docker = worker[0]
                 worker_cpu_usage = worker[1]
-                function_cpu_usage += worker_cpu_usage
-                r.zadd(function, docker, worker_cpu_usage)
-            mean_fucntion_cpu_usage = function_cpu_usage / total_function_workers
+                if docker not in workers_to_kill[function]:
+                    function_cpu_usage += worker_cpu_usage
+                    # r.zadd(function, docker, worker_cpu_usage)
+                if docker in workers_to_kill[function] and worker_cpu_usage > LOW_CPU_THRESHOLD:
+                    del workers_to_kill[function][docker]
+                    r.zadd(function, docker, worker_cpu_usage)
 
+            if active_function_workers == 0:
+                continue
+
+            mean_fucntion_cpu_usage = function_cpu_usage / active_function_workers
+            logger.info(mean_fucntion_cpu_usage)
+
+            # Scale Up
             if mean_fucntion_cpu_usage > HIGH_CPU_THRESHOLD:
-                start_worker(containers, function)
+                if len(workers_to_kill[function]) > 0:
+                    docker = random.sample(workers_to_kill[function], 1)[0]
+                    logger.info("Reusing worker: "+docker)
+                    del workers_to_kill[function][docker]
+                else:
+                    start_worker(containers, function)
+                continue
 
-            if total_function_workers > 1 and function_cpu_usage < (total_function_workers*100):
-                stop_worker(containers, function)
+            # Scale Down
+            if active_function_workers > 1:
+                if mean_fucntion_cpu_usage < ((active_function_workers-1)*HIGH_CPU_THRESHOLD):
+                    if docker not in workers_to_kill[function]:
+                        logger.info("Underutilized intermediate worker: "+docker)
+                        r.zrem(function, docker)
+                        workers_to_kill[function][docker] = WORKER_TIMEOUT
+                else:
+                    if docker in workers_to_kill[function]:
+                        logger.info("Reusing worker: "+docker)
+                        del workers_to_kill[function][docker]
 
-            if total_function_workers == 1 and function_cpu_usage < LOW_CPU_THRESHOLD:
-                pass
-                # TODO: prepare 2 minutes timeout
+            if active_function_workers == 1:
+                if mean_fucntion_cpu_usage < LOW_CPU_THRESHOLD:
+                    if docker not in workers_to_kill[function]:
+                        logger.info("Underutilized last worker: "+docker)
+                        workers_to_kill[function][docker] = WORKER_TIMEOUT
 
         gevent.sleep(0)
 
@@ -222,11 +285,11 @@ def monitoring_info_auditor(containers, monitoring_info):
 def monitoring(containers):
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
     monitoring_info = dict()
-    threads = list()
 
     logger.info("Starting monitoring thread")
+
     # Check monitoring info, and spawn new workers
-    threads.append(Greenlet.spawn(monitoring_info_auditor, containers, monitoring_info))
+    Greenlet.spawn(monitoring_info_auditor, containers, monitoring_info)
 
     while True:
         # Check for new workers
@@ -241,7 +304,7 @@ def monitoring(containers):
             for worker in workers:
                 if worker not in monitoring_info[function]:
                     c_id = int(worker.replace('zion_', ''))
-                    monitoring_info[function][worker] = 0
+                    monitoring_info[function][worker] = 1
                     container = containers[c_id]
                     # Start monitoring of container
                     container.function = function
@@ -275,7 +338,7 @@ def start_containers(containers):
     if not os.path.exists(POOL_DIR):
         os.makedirs(POOL_DIR)
     os.chown(POOL_DIR, swift_uid, swift_gid)
-    for cid in range(TOTAL_WORKERS):
+    for cid in range(WORKERS):
         worker = Container(cid)
         containers[cid] = worker
 

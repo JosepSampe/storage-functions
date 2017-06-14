@@ -31,6 +31,8 @@ class Worker(object):
 
     def _get_available_worker(self):
         docker_id = self.redis.zrange(self.worker_key, 0, 0)
+        # workers = self.redis.zrange(self.worker_key, 0, -1)
+        # docker_id = random.sample(workers, 1)
         if docker_id:
             docker_id = docker_id[0]
             worker_path = os.path.join(self.main_dir, self.workers_dir,
