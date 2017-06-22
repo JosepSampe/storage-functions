@@ -1,6 +1,7 @@
 from blackeagle.gateways.docker.bus import Bus
 from blackeagle.gateways.docker.datagram import Datagram
 import shutil
+import random
 import os
 
 
@@ -30,18 +31,20 @@ class Worker(object):
             self._execute()
 
     def _get_available_worker(self):
-        docker_id = self.redis.zrange(self.worker_key, 0, 0)
-        # workers = self.redis.zrange(self.worker_key, 0, -1)
-        # docker_id = random.sample(workers, 1)
-        if docker_id:
-            docker_id = docker_id[0]
-            worker_path = os.path.join(self.main_dir, self.workers_dir,
-                                       self.scope, self.function_name, docker_id)
-            self.worker_channel = os.path.join(worker_path, 'channel', 'pipe')
-            self.logger.info("There are available workers: "+self.function_obj)
-            return True
+        # docker_id = self.redis.zrange(self.worker_key, 0, 0)
+        workers = self.redis.zrange(self.worker_key, 0, -1)
+        if workers:
+            docker_id = random.sample(workers, 1)[0]
+
+            if docker_id:
+                docker_id = docker_id
+                worker_path = os.path.join(self.main_dir, self.workers_dir,
+                                           self.scope, self.function_name, docker_id)
+                self.worker_channel = os.path.join(worker_path, 'channel', 'pipe')
+                self.logger.info("There is an available worker for "+self.function_obj+" in "+docker_id)
+                return True
         else:
-            self.logger.info("There are no available workers: "+self.function_obj)
+            self.logger.info("There are no available workers for "+self.function_obj)
             return False
 
     def _get_available_docker(self):
