@@ -24,7 +24,7 @@ HIGH_CPU_THRESHOLD = 20
 LOW_CPU_THRESHOLD = 0.10
 WORKERS = 4
 WORKER_TIMEOUT = 30  # seconds
-TIMEOUT_TO_GROW_UP = 3  # seconds
+TIMEOUT_TO_GROW_UP = 5  # seconds
 # DIRS
 ZION_DIR = '/opt/zion'
 MAIN_DIR = '/home/docker_device/blackeagle/'
@@ -88,13 +88,9 @@ class Container(Thread):
         self.worker_dir = None
         self.r = redis.Redis(connection_pool=REDIS_CONN_POOL)
         self.c = docker.from_env()
-
+        self.cpu_usage = 0
         self.function = None
-        self.monitoing_info = None
-
-        logger.info("Preparing new container: "+self.name)
-        self._create_directory_structure()
-        self._start_container()
+        self.monitoring_info = None
 
     def _create_directory_structure(self):
         logger.info("Creating container structure: "+self.docker_dir)
@@ -116,6 +112,8 @@ class Container(Thread):
         self.r.rpush("available_dockers", self.name)
 
     def run(self):
+        self._create_directory_structure()
+        self._start_container()
         try:
             for stats in self.c.api.stats(self.name, decode=True):
                 if not self.stopped:
@@ -125,7 +123,9 @@ class Container(Thread):
                         system_delta = stats["cpu_stats"]["system_cpu_usage"] - \
                             stats["precpu_stats"]["system_cpu_usage"]
                         total_cpu_usage = cpu_delta / float(system_delta) * 100 * TOTAL_CPUS
-                        self.monitoring_info[self.function][self.name] = float("{0:.2f}".format(total_cpu_usage))
+                        self.cpu_usage = float("{0:.2f}".format(total_cpu_usage))
+                        if self.function and self.monitoring_info:
+                            self.monitoring_info[self.function][self.name] = self.cpu_usage
                     except:
                         pass
             msg = '404 Client Error: Not Found ("No such container: '+self.name+'")'
@@ -220,7 +220,6 @@ def worker_timeout_checker(containers, workers_to_kill):
             for function in workers_to_kill.keys():
                 workers = workers_to_kill[function]
                 for worker in workers.keys():
-                    # logger.info(worker+" timeout: "+str(workers[worker]))
                     workers[worker] -= 1
                     if workers[worker] == 0:
                         docker_id = int(worker.replace('zion_', ''))
@@ -228,8 +227,9 @@ def worker_timeout_checker(containers, workers_to_kill):
                         docker.stop(function+" worker timeout, killing the worker on '"+worker+"' docker")
                         logger.info("Killed container: "+worker)
                         del workers_to_kill[function][worker]
-                        containers[docker_id] = Container(docker_id)
-                        # TODO: start_container()
+                        container = Container(docker_id)
+                        container.start()
+                        containers[docker_id] = container
                 if function in workers_to_kill and len(workers_to_kill[function]) == 0:
                     del workers_to_kill[function]
             time.sleep(1)
@@ -271,19 +271,20 @@ def monitoring_info_auditor(containers, monitoring_info):
                     if docker not in workers_to_kill[function]:
                         function_cpu_usage += worker_cpu_usage
                         last_active_docker = docker
-                        # r.zadd(function, docker, worker_cpu_usage)
 
-                    if active_function_workers == 0 and docker in workers_to_kill[function] and worker_cpu_usage > LOW_CPU_THRESHOLD:
+                    if active_function_workers == 0 and docker in workers_to_kill[function] \
+                       and worker_cpu_usage > LOW_CPU_THRESHOLD:
                         logger.info("Reusing worker: "+docker)
                         function_cpu_usage += worker_cpu_usage
                         del workers_to_kill[function][docker]
-                        # r.zadd(function, docker, worker_cpu_usage)
                         r.zadd(function, docker, 0)
                         active_function_workers += 1
 
                 logger.info(workers_to_kill)
                 logger.info("Active: "+str(active_function_workers)+" - To kill: "+str(len(workers_to_kill[function])))
-                logger.info("Total CPU: "+str(function_cpu_usage)+"% - Scale Up: "+str(active_function_workers*HIGH_CPU_THRESHOLD)+"% - Scale Down: "+str((active_function_workers-1)*HIGH_CPU_THRESHOLD)+"%")
+                scale_up = active_function_workers*HIGH_CPU_THRESHOLD
+                scale_down = (active_function_workers-1)*HIGH_CPU_THRESHOLD
+                logger.info("Total CPU: "+str(function_cpu_usage)+"% - Scale Up: "+str(scale_up)+"% - Scale Down: "+str(scale_down)+"%")
 
                 if active_function_workers == 0:
                     continue
@@ -342,12 +343,10 @@ def monitoring(containers):
                 if worker not in monitoring_info[function]:
                     logger.info("Monitoring "+worker)
                     c_id = int(worker.replace('zion_', ''))
-                    monitoring_info[function][worker] = 1
                     container = containers[c_id]
                     # Start monitoring of container
-                    container.function = function
                     container.monitoring_info = monitoring_info
-                    container.start()
+                    container.function = function
         time.sleep(1)
 
 
@@ -376,8 +375,9 @@ def start_containers(containers):
         os.makedirs(POOL_DIR)
     os.chown(POOL_DIR, swift_uid, swift_gid)
     for cid in range(WORKERS):
-        worker = Container(cid)
-        containers[cid] = worker
+        container = Container(cid)
+        containers[cid] = container
+        container.start()
 
 
 def main():
