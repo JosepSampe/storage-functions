@@ -34,4 +34,5 @@ RUN pip install --upgrade /home/zion/zion_framework/Engine/swift/middleware/
 
 EXPOSE 8585
 
+RUN chmod 777 /home/zion/zion_framework/Engine/compute/service/init_container.sh
 ENTRYPOINT /home/zion/zion_framework/Engine/compute/service/init_container.sh
