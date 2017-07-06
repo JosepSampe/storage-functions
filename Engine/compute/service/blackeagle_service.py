@@ -1,7 +1,7 @@
 from blackeagle.common.utils import get_object_metadata
 from blackeagle.gateways.docker.bus import Bus
 from blackeagle.gateways.docker.datagram import Datagram
-from daemonize import Daemonize
+# from daemonize import Daemonize
 from docker.errors import NotFound
 from subprocess import Popen
 from threading import Thread
@@ -20,7 +20,7 @@ import os
 REDIS_CONN_POOL = redis.ConnectionPool(host='localhost', port=6379, db=10)
 # CPU
 TOTAL_CPUS = psutil.cpu_count()
-HIGH_CPU_THRESHOLD = 20
+HIGH_CPU_THRESHOLD = 90
 LOW_CPU_THRESHOLD = 0.10
 WORKERS = 4
 WORKER_TIMEOUT = 30  # seconds
@@ -187,17 +187,17 @@ class Container(Thread):
             self.r.zrem(self.function, self.name)
             try:
                 self.container.remove(force=True)
+                if self.worker_dir and os.path.exists(self.worker_dir):
+                    os.remove(self.worker_dir)
+                if self.function in self.monitoring_info and self.name in \
+                   self.monitoring_info[self.function]:
+                    del self.monitoring_info[self.function][self.name]
+                if self.function in self.monitoring_info and \
+                   len(self.monitoring_info[self.function]) == 0:
+                    del self.monitoring_info[self.function]
+                logger.warning(message)
             except:
                 pass
-            if self.worker_dir and os.path.exists(self.worker_dir):
-                os.remove(self.worker_dir)
-            if self.function in self.monitoring_info and self.name in \
-               self.monitoring_info[self.function]:
-                del self.monitoring_info[self.function][self.name]
-            if self.function in self.monitoring_info and \
-               len(self.monitoring_info[self.function]) == 0:
-                del self.monitoring_info[self.function]
-            logger.warning(message)
 
 
 def start_worker(containers, function):
@@ -215,9 +215,10 @@ def start_worker(containers, function):
 
 
 def worker_timeout_checker(containers, workers_to_kill):
-    try:
-        while True:
-            for function in workers_to_kill.keys():
+
+    while True:
+        for function in workers_to_kill.keys():
+            try:
                 workers = workers_to_kill[function]
                 for worker in workers.keys():
                     workers[worker] -= 1
@@ -232,10 +233,9 @@ def worker_timeout_checker(containers, workers_to_kill):
                         containers[docker_id] = container
                 if function in workers_to_kill and len(workers_to_kill[function]) == 0:
                     del workers_to_kill[function]
-            time.sleep(1)
-
-    except:
-        raise
+            except:
+                pass
+        time.sleep(1)
 
 
 def monitoring_info_auditor(containers, monitoring_info):
