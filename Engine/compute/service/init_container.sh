@@ -1,5 +1,5 @@
 #!/bin/sh
-if [ $1 == "debug" ]; then
+if [ $1 = "debug" ]; then
     $2
 else
 	service redis-server restart
