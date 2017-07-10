@@ -18,7 +18,7 @@ apt-get install python-openstackclient -y && \
 apt-get install liberasurecode1 liberasurecode-dev -y && \
 apt-get install libjerasure2 libjerasure-dev -y && \
 apt-get install swift swift-proxy python-swiftclient -y && \
-apt-get install python-keystoneclient python-keystonemiddleware memcached -y && \
+# apt-get install python-keystoneclient python-keystonemiddleware memcached -y && \
 apt-get clean
 
 # Clone Zion GIT repository
