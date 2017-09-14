@@ -1,6 +1,6 @@
-from blackeagle.gateways.docker.protocol import Protocol
-from blackeagle.gateways.docker.function import Function
-from blackeagle.gateways.docker.worker import Worker
+from zion.gateways.docker.protocol import Protocol
+from zion.gateways.docker.function import Function
+from zion.gateways.docker.worker import Worker
 import time
 
 

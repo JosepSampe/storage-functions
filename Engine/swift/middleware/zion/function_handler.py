@@ -1,8 +1,8 @@
 from swift.common.swob import wsgify
 from swift.common.utils import get_logger
-from blackeagle.handlers import ProxyHandler
-from blackeagle.handlers import ComputeHandler
-from blackeagle.handlers.base import NotFunctionRequest
+from zion.handlers import ProxyHandler
+from zion.handlers import ComputeHandler
+from zion.handlers.base import NotFunctionRequest
 import redis
 
 
@@ -13,7 +13,7 @@ class FunctionHandlerMiddleware(object):
         self.conf = conf
         self.exec_server = self.conf.get('execution_server')
         self.logger = get_logger(conf, name=self.exec_server +
-                                 "-server Blackeagle",
+                                 "-server Zion",
                                  log_route='function_handler')
         redis_host = self.conf.get('redis_host')
         redis_port = self.conf.get('redis_port')
@@ -49,7 +49,7 @@ class FunctionHandlerMiddleware(object):
 
             return handler.handle_request()
         except NotFunctionRequest:
-            self.logger.debug('No Blackeagle Request, bypassing middleware')
+            self.logger.debug('No Zion Request, bypassing middleware')
             return req.get_response(self.app)
         except Exception as exception:
             raise exception
@@ -64,7 +64,7 @@ def filter_factory(global_conf, **local_conf):
     conf['functions_container'] = conf.get('functions_container', 'functions')
     conf['function_visibility'] = conf.get('function_visibility', True)
     # Paths
-    conf['main_dir'] = conf.get('main_dir', '/home/docker_device/blackeagle')
+    conf['main_dir'] = conf.get('main_dir', '/home/docker_device/zion')
     # Worker paths
     conf['workers_dir'] = conf.get('workers_dir', 'workers')
     conf['java_runtime_dir'] = conf.get('java_runtime_dir', 'runtime/java')

@@ -1,5 +1,5 @@
-from blackeagle.handlers import BaseHandler
-from blackeagle.handlers.base import NotFunctionRequest
+from zion.handlers import BaseHandler
+from zion.handlers.base import NotFunctionRequest
 from swift.common.utils import public
 
 

@@ -1,5 +1,5 @@
 from swift.common.wsgi import make_subrequest
-from blackeagle.common.utils import set_object_metadata, get_object_metadata
+from zion.common.utils import set_object_metadata, get_object_metadata
 import tarfile
 import os
 

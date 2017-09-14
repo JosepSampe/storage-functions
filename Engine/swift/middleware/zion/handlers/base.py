@@ -1,5 +1,5 @@
-from blackeagle.gateways import DockerGateway
-from blackeagle.common.utils import DataFdIter
+from zion.gateways import DockerGateway
+from zion.common.utils import DataFdIter
 
 from swift.common.swob import Response
 import os

@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 paste_factory = ['synchronous_functions = '
-                 'blackeagle.function_handler:filter_factory']
+                 'zion.function_handler:filter_factory']
 
-setup(name='swift-blackeagle',
-      version='0.1.0',
+setup(name='swift-zion',
+      version='0.6.3',
       description='Synchronous functions middleware for OpenStack Swift',
       author='Josep Sampe',
       url='http://iostack.eu',

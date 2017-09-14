@@ -1,5 +1,5 @@
-from blackeagle.gateways.docker.bus import Bus
-from blackeagle.gateways.docker.datagram import Datagram
+from zion.gateways.docker.bus import Bus
+from zion.gateways.docker.datagram import Datagram
 from eventlet.timeout import Timeout
 import select
 import eventlet

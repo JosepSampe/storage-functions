@@ -1,6 +1,6 @@
-from blackeagle.common.utils import get_object_metadata
-from blackeagle.gateways.docker.bus import Bus
-from blackeagle.gateways.docker.datagram import Datagram
+from zion.common.utils import get_object_metadata
+from zion.gateways.docker.bus import Bus
+from zion.gateways.docker.datagram import Datagram
 # from daemonize import Daemonize
 from docker.errors import NotFound
 from subprocess import Popen
@@ -27,11 +27,11 @@ WORKER_TIMEOUT = 30  # seconds
 TIMEOUT_TO_GROW_UP = 5  # seconds
 # DIRS
 ZION_DIR = '/opt/zion'
-MAIN_DIR = '/home/docker_device/blackeagle/'
+MAIN_DIR = '/home/docker_device/zion/'
 WORKERS_DIR = MAIN_DIR+'workers/'
 FUNCTIONS_DIR = MAIN_DIR+'functions/'
 POOL_DIR = MAIN_DIR+'docker_pool/'
-DOCKER_IMAGE = '192.168.2.1:5001/blackeagle'
+DOCKER_IMAGE = '192.168.2.1:5001/zion'
 # Headers
 TIMEOUT_HEADER = "X-Object-Meta-Function-Timeout"
 MEMORY_HEADER = "X-Object-Meta-Function-Memory"
@@ -43,10 +43,10 @@ swift_gid = shutil._get_gid('swift')
 
 def init_logger():
     # create logger with 'be_service'
-    logger = logging.getLogger('be_service')
+    logger = logging.getLogger('zion_service')
     logger.setLevel(logging.DEBUG)
     # create file handler which logs even debug messages
-    fh = logging.FileHandler('/var/log/be/be-service.log')
+    fh = logging.FileHandler('/var/log/zion/zion-service.log')
     fh.setLevel(logging.DEBUG)
     # create console handler with a higher log level
     ch = logging.StreamHandler(sys.stdout)
