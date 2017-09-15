@@ -6,7 +6,7 @@
 	</target>
 
 	<target name="compile">
-		<javac srcdir="src/com/urv/blackeagle/" destdir="bin" includeantruntime="false">
+		<javac srcdir="src/com/urv/zion/" destdir="bin" includeantruntime="false">
 			<classpath>
 				<pathelement path="lib/json_simple-1.1.jar"/>
 				<pathelement path="lib/logback-classic-1.1.2.jar"/>
@@ -19,7 +19,7 @@
 			</classpath>
 		</javac>
 
-	     <jar destfile="bin/blackeagle-runtime-1.0.jar" 
+	     <jar destfile="bin/zion-runtime-1.0.jar" 
 	          basedir="bin"
 	     	  includes="**/*.class">
 	     </jar>
@@ -27,7 +27,7 @@
 	
 	<target name="copy">
         <copy todir="../../../../Function Samples/java/">
-           <fileset dir="bin" includes="blackeagle-runtime-1.0.jar"/>
+           <fileset dir="bin" includes="zion-runtime-1.0.jar"/>
         </copy>
 	</target>
 	

@@ -1,11 +1,11 @@
-package com.urv.blackeagle.runtime.context;
+package com.urv.zion.runtime.context;
 
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 
 import org.slf4j.Logger;
 
-import com.urv.blackeagle.runtime.api.Swift;
+import com.urv.zion.runtime.api.Swift;
 
 import java.util.Map;
 
@@ -18,7 +18,6 @@ public class Context {
 	public Request request;
 	public Object object;
 	public Function function;
-	public Storlet storlet;
 
 
 	public Context(FileDescriptor inputStreamFd, FileDescriptor outputStreamFd, Map<String, String> functionParameters, 
@@ -29,7 +28,6 @@ public class Context {
 		
 		logger_ = localLog;
 		log = new Log(functionLog, logger_);
-		storlet = new Storlet(commandFd, logger_);
 		function = new Function(functionParameters, logger_);
 		response = new Response(logger_);
 		request = new Request(commandFd, reqMd, response, logger_);

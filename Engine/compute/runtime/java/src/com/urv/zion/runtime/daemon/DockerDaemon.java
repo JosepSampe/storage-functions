@@ -1,4 +1,4 @@
-package com.urv.blackeagle.runtime.daemon;
+package com.urv.zion.runtime.daemon;
 
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -9,16 +9,14 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Level;
 import redis.clients.jedis.Jedis;
 import com.ibm.storlet.sbus.*;
-import com.urv.blackeagle.runtime.function.Function;
-import com.urv.blackeagle.runtime.function.FunctionExecutionTask;
+import com.urv.zion.runtime.function.Function;
+import com.urv.zion.runtime.function.FunctionExecutionTask;
+
 import java.util.HashMap;
 import java.util.Properties;
 
 
-/*----------------------------------------------------------------------------
- * DockerDaemon - Java Runtime
- *  
- * */
+
 public class DockerDaemon {
 
 	private static ch.qos.logback.classic.Logger logger_;
@@ -33,9 +31,6 @@ public class DockerDaemon {
 	private static int redisDatabase;
 	private static Jedis redis_ = null;
 
-	/*------------------------------------------------------------------------
-	 * initLog
-	 * */
 	private static boolean initLog(final String strLogLevel) {
 		Level newLevel = Level.toLevel(strLogLevel);
 		boolean bStatus = true;
@@ -63,11 +58,6 @@ public class DockerDaemon {
 		mainLoop();
 	}
 
-	/*------------------------------------------------------------------------
-	 * initialize
-	 * 
-	 * Initialize the resources
-	 * */
 	private static void initialize(String[] args) throws Exception {
 		String strBusPath = args[0];
 		String strLogLevel = args[1];
@@ -111,11 +101,6 @@ public class DockerDaemon {
 		}
 	}
 
-	/*------------------------------------------------------------------------
-	 * mainLoop
-	 * 
-	 * The main loop - listen, receive, execute till the HALT command. 
-	 * */
 	private static void mainLoop() throws Exception {
 		boolean doContinue = true;
 		while (doContinue) {
@@ -147,11 +132,6 @@ public class DockerDaemon {
 		}
 	}
 	
-	/*------------------------------------------------------------------------
-	 * processDatagram
-	 * 
-	 * Process the recived datagram
-	 * */
 	private static void processDatagram(SBusDatagram dtg){
 		int command = dtg.getNFiles();
 
