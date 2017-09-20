@@ -33,7 +33,7 @@ def _request_instance_property():
 
 class BaseHandler(object):
     """
-    This is an abstract handler for Proxy/Object Server middleware
+    This is an abstract handler for Proxy/Compute Server middleware
     """
     req = _request_instance_property()
 
@@ -297,7 +297,7 @@ class BaseHandler(object):
     def apply_function_onput(self):
         """
         Call gateway module to get result of function execution
-        in GET flow
+        in PUT flow
         """
         if self.function_data:
             function_info = eval(self.function_data['onput'])
