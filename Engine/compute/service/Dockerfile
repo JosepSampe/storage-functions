@@ -23,7 +23,7 @@ apt-get clean
 
 # Clone Zion GIT repository
 RUN mkdir /home/zion
-RUN git clone https://github.com/JosepSampe/blackeagle /home/zion/zion_framework
+RUN git clone https://github.com/JosepSampe/data-driven-functions /home/zion/zion_framework
 RUN mkdir /var/log/be
 
 # Update PIP and python-redis
