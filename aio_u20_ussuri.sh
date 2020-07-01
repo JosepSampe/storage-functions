@@ -1,6 +1,6 @@
 #!/bin/bash
 
-OPENSTACK_RELEASE=ussury
+OPENSTACK_RELEASE=ussuri
 
 #########  PASSWORDS  #########
 MYSQL_PASSWD=root
@@ -32,7 +32,7 @@ upgrade_system(){
 
 ###### Install Memcached ######
 install_memcache_server(){
-    apt install memcached python-memcache -y
+    apt install memcached python3-memcache -y
     sed -i '/-l 127.0.0.1/c\-l controller' /etc/memcached.conf
     service memcached restart
 }
@@ -61,7 +61,7 @@ install_mysql_server(){
     mysql -uroot -p$MYSQL_PASSWD -e "DELETE FROM mysql.user WHERE User=''"
     mysql -uroot -p$MYSQL_PASSWD -e "FLUSH PRIVILEGES"
     
-    cat <<-EOF >> /etc/mysql/mariadb.conf.d/99-openstack.cnf
+    cat <<-EOF > /etc/mysql/mariadb.conf.d/99-openstack.cnf
     [mysqld]
     bind-address = 0.0.0.0
     default-storage-engine = innodb
@@ -72,6 +72,7 @@ install_mysql_server(){
     EOF
     
     service mysql restart
+
 }
 
 
@@ -96,7 +97,7 @@ install_openstack_keystone(){
     rm -f /var/lib/keystone/keystone.db
     service apache2 restart
         
-    cat <<-EOF >> admin-openrc
+    cat <<-EOF > admin-openrc
     export OS_USERNAME=admin
     export OS_PASSWORD=$KEYSTONE_ADMIN_PASSWD
     export OS_PROJECT_NAME=admin
@@ -119,7 +120,7 @@ install_openstack_keystone(){
     openstack role add --project zion --user zion ResellerAdmin
     openstack role add --domain default --user zion ResellerAdmin
     
-    cat <<-EOF >> zion-openrc
+    cat <<-EOF > zion-openrc
     export OS_USERNAME=zion
     export OS_PASSWORD=$ZION_TENANT_PASSWD
     export OS_PROJECT_NAME=zion
@@ -128,12 +129,18 @@ install_openstack_keystone(){
     export OS_AUTH_URL=http://controller:5000/v3
     export OS_IDENTITY_API_VERSION=3
     EOF
+
 }
 
 ###### OpenStak Horizon ######
 install_openstack_horizon() {
+
     apt install openstack-dashboard -y
+ 
     cat <<-EOF >> /etc/openstack-dashboard/local_settings.py
+    OPENSTACK_KEYSTONE_DEFAULT_ROLE = "user"
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    LOGIN_REDIRECT_URL = WEBROOT + "project/containers/"
     
     OPENSTACK_API_VERSIONS = {
         "identity": 3,
@@ -144,13 +151,17 @@ install_openstack_horizon() {
     EOF
     
     sed -i '/OPENSTACK_HOST = "127.0.0.1"/c\OPENSTACK_HOST = "controller"' /etc/openstack-dashboard/local_settings.py
-    sed -i '/OPENSTACK_KEYSTONE_URL = "http:\/\/%s:5000\/v2.0" % OPENSTACK_HOST/c\OPENSTACK_KEYSTONE_URL = "http:\/\/%s:5000\/v3" % OPENSTACK_HOST' /etc/openstack-dashboard/local_settings.py
-    sed -i '/OPENSTACK_KEYSTONE_DEFAULT_ROLE = "_member_"/c\OPENSTACK_KEYSTONE_DEFAULT_ROLE = "user"' /etc/openstack-dashboard/local_settings.py
-    #sed -i '/#LOGIN_REDIRECT_URL = WEBROOT/c\LOGIN_REDIRECT_URL = WEBROOT + "horizon/project/containers"' /etc/openstack-dashboard/local_settings.py
+    sed -i 's/\/identity\/v3/:5000\/v3/g' /etc/openstack-dashboard/local_settings.py
+    sed -i "/DEFAULT_THEME = 'ubuntu/c\DEFAULT_THEME = 'default'" /etc/openstack-dashboard/local_settings.py
+    sed -i 's/127.0.0.1:11211/controller:11211/g' /etc/openstack-dashboard/local_settings.py
+
+    systemctl reload apache2.service
+
 }
 
 ###### Install Swift ######
 install_openstack_swift(){
+
     source admin-openrc
     openstack user create --domain default --password swift swift
     openstack role add --project service --user swift admin
@@ -161,16 +172,17 @@ install_openstack_swift(){
     openstack endpoint create --region RegionOne object-store admin http://controller:8080/v1
     
     apt install swift swift-proxy swift-account swift-container swift-object -y
-    apt install python-swiftclient python-keystoneclient python-keystonemiddleware memcached -y
+    apt install python3-swiftclient python3-keystoneclient python3-keystonemiddleware memcached -y
     apt install xfsprogs rsync -y
     
     mkdir /etc/swift
-    chown $(whoami):$(whoami) /etc/swift
-    curl -o /etc/swift/proxy-server.conf https://git.openstack.org/cgit/openstack/swift/plain/etc/proxy-server.conf-sample?h=stable/$OPENSTACK_RELEASE
-    curl -o /etc/swift/account-server.conf https://git.openstack.org/cgit/openstack/swift/plain/etc/account-server.conf-sample?h=stable/$OPENSTACK_RELEASE
-    curl -o /etc/swift/container-server.conf https://git.openstack.org/cgit/openstack/swift/plain/etc/container-server.conf-sample?h=stable/$OPENSTACK_RELEASE
-    curl -o /etc/swift/object-server.conf https://git.openstack.org/cgit/openstack/swift/plain/etc/object-server.conf-sample?h=stable/$OPENSTACK_RELEASE
-    curl -o /etc/swift/swift.conf https://git.openstack.org/cgit/openstack/swift/plain/etc/swift.conf-sample?h=stable/$OPENSTACK_RELEASE
+    #chown $(whoami):$(whoami) /etc/swift
+
+    curl -o /etc/swift/proxy-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/proxy-server.conf-sample
+    curl -o /etc/swift/account-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/account-server.conf-sample
+    curl -o /etc/swift/container-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/container-server.conf-sample
+    curl -o /etc/swift/object-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/object-server.conf-sample
+    curl -o /etc/swift/swift.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/swift.conf-sample
     
     mkdir -p /srv/node/sda1
     mkdir -p /var/cache/swift
@@ -195,23 +207,30 @@ install_openstack_swift(){
     swift-ring-builder object.builder rebalance
     cd ~
     
-    sed -i '/^pipeline =/ d' /etc/swift/proxy-server.conf
+    chown -R swift:swift /etc/swift
+ 
+    sed -i '/pipeline = catch_errors gatekeeper healthcheck proxy-logging cache listing_formats container_sync bulk tempurl ratelimit tempauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server/c\# pipeline = catch_errors gatekeeper healthcheck proxy-logging cache listing_formats container_sync bulk tempurl ratelimit tempauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
+    sed -i '/#pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server/c\pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
+
     sed -i '/# account_autocreate = false/c\account_autocreate = True' /etc/swift/proxy-server.conf
+    sed -i '/# memcache_servers = 127.0.0.1:11211/c\memcache_servers = controller:11211' /etc/swift/proxy-server.conf
+ 
     sed -i '/# \[filter:authtoken]/c\[filter:authtoken]' /etc/swift/proxy-server.conf
     sed -i '/# paste.filter_factory = keystonemiddleware.auth_token:filter_factory/c\paste.filter_factory = keystonemiddleware.auth_token:filter_factory' /etc/swift/proxy-server.conf
-    sed -i '/# auth_url = http:\/\/keystonehost:35357/c\auth_url = http://controller:5000' /etc/swift/proxy-server.conf
+    sed -i '/# www_authenticate_uri = http:\/\/keystonehost:5000/c\www_authenticate_uri = http:\/\/controller:5000' /etc/swift/proxy-server.conf
+    sed -i '/# auth_url = http:\/\/keystonehost:5000/c\auth_url = http://controller:5000' /etc/swift/proxy-server.conf
     sed -i '/# auth_plugin = password/c\auth_type = password' /etc/swift/proxy-server.conf
     sed -i '/# project_domain_id = default/c\project_domain_name = default' /etc/swift/proxy-server.conf
     sed -i '/# user_domain_id = default/c\user_domain_name = default' /etc/swift/proxy-server.conf
     sed -i '/# project_name = service/c\project_name = service' /etc/swift/proxy-server.conf
     sed -i '/# username = swift/c\username = swift' /etc/swift/proxy-server.conf
     sed -i '/# password = password/c\password = swift \nservice_token_roles_required = True' /etc/swift/proxy-server.conf
-    sed -i '/# delay_auth_decision = False/c\delay_auth_decision = True \nmemcached_servers = controller:11211' /etc/swift/proxy-server.conf
+    sed -i '/# delay_auth_decision = False/c\delay_auth_decision = True' /etc/swift/proxy-server.conf
+
     sed -i '/# \[filter:keystoneauth]/c\[filter:keystoneauth]' /etc/swift/proxy-server.conf
     sed -i '/# use = egg:swift#keystoneauth/c\use = egg:swift#keystoneauth' /etc/swift/proxy-server.conf
     sed -i '/# operator_roles = admin, swiftoperator/c\operator_roles = admin, swiftoperator' /etc/swift/proxy-server.conf
-    sed -i '/# memcache_servers = 127.0.0.1:11211/c\memcache_servers = controller:11211' /etc/swift/proxy-server.conf
-    
+
     sed -i '/# mount_check = true/c\mount_check = false' /etc/swift/account-server.conf
     sed -i '/# mount_check = true/c\mount_check = false' /etc/swift/container-server.conf
     sed -i '/# mount_check = true/c\mount_check = false' /etc/swift/object-server.conf
@@ -226,7 +245,7 @@ install_openstack_swift(){
     swift-init all stop
     #usermod -u 1010 swift
     #groupmod -g 1010 swift
-    
+
 }
 
 ##### Install Storlets #####
@@ -411,8 +430,8 @@ initialize_tenant(){
 
 ##### Restart Main Services #####
 restart_services(){
-    swift-init main restart
-    service apache2 restart
+    swift-init main
+    systemctl restart apache2.service
 }
 
 
@@ -432,11 +451,10 @@ install_zion(){
     
     printf "Installing OpenStack Keystone\t ... \t10%%"
     install_openstack_keystone >> $LOG 2>&1; printf "\tDone!\n"
-        
     printf "Installing OpenStack Horizon\t ... \t30%%"
     install_openstack_horizon >> $LOG 2>&1; printf "\tDone!\n"
-    #printf "Installing OpenStack Swift\t ... \t50%%"
-    #install_openstack_swift >> $LOG 2>&1; printf "\tDone!\n"
+    printf "Installing OpenStack Swift\t ... \t50%%"
+    install_openstack_swift >> $LOG 2>&1; printf "\tDone!\n"
     
     #printf "Installing Storlets\t\t ... \t70%%"
     #install_storlets >> $LOG 2>&1; printf "\tDone!\n"
@@ -491,7 +509,7 @@ update_zion(){
 
 
 usage(){
-    echo "Usage: sudo ./aio_installation.sh install|update"
+    echo "Usage: sudo ./aio_u20_ussuri.sh install|update"
     exit 1
 }
 
