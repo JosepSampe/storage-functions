@@ -31,6 +31,10 @@
         </copy>
 	</target>
 	
-	<target name="build" depends="clean, compile, copy"/>
+   <target name="cleancom">
+            <delete dir="bin/com" />
+    </target>
+	
+	<target name="build" depends="clean, compile, copy, cleancom"/>
 
 </project>

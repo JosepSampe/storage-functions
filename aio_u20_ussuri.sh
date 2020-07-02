@@ -48,6 +48,25 @@ install_rabbitmq_server(){
 }
 
 
+##### Install Docker #####
+install_docker(){
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    apt-key fingerprint 0EBFCD88
+    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    apt update
+    apt install aufs-tools linux-image-generic apt-transport-https docker-ce ansible ant -y
+}
+
+
+##### Install Redis #####
+install_redis(){
+    apt install redis-server -y
+    sed -i '/bind 127.0.0.1/c\bind 0.0.0.0' /etc/redis/redis.conf
+    service redis restart
+    pip3 install -U redis
+}
+
+
 ###### Install MySQL ######
 install_mysql_server(){
 
@@ -247,23 +266,6 @@ install_openstack_swift(){
 
 }
 
-##### Install Docker #####
-install_docker(){
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-    apt-key fingerprint 0EBFCD88
-    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-    apt update
-    apt install aufs-tools linux-image-generic apt-transport-https docker-ce ansible ant -y
-}
-
-##### Install Redis #####
-install_redis(){
-    apt install redis-server -y
-    sed -i '/bind 127.0.0.1/c\bind 0.0.0.0' /etc/redis/redis.conf
-    service redis restart
-    pip3 install -U redis
-}
-
 
 #### Install Zion #####
 install_zion(){
@@ -344,41 +346,44 @@ initialize_tenant(){
 
 ##### Restart Main Services #####
 restart_services(){
-    swift-init main
+    swift-init main restart
     systemctl restart apache2.service
 }
 
 
 install_zion(){
-    printf "\nStarting Installation. The script takes long to complete, be patient!\n"
+    printf "\nStarting Zion Storage Functions Installation.\n"
+    printf "The script takes long to complete, be patient!\n"
     printf "See the full log at $LOG\n\n"
     
-    printf "Upgrading Server System\t\t ... \t2%%"
+    printf "Upgrading Server System\t\t ... \t1%%"
     upgrade_system >> $LOG 2>&1; printf "\tDone!\n"
     
-    printf "Installing Memcache Server\t ... \t4%%"
+    printf "Installing Memcache Server\t ... \t5%%"
     install_memcache_server >> $LOG 2>&1; printf "\tDone!\n"
-    printf "Installing RabbitMQ Server\t ... \t6%%"
+    printf "Installing RabbitMQ Server\t ... \t10%%"
     install_rabbitmq_server >> $LOG 2>&1; printf "\tDone!\n"
-    printf "Installing MySQL Server\t\t ... \t8%%"
+    printf "Installing Docker server\t\t ... \t15%%"
+    install_docker >> $LOG 2>&1; printf "\tDone!\n"
+    printf "Installing redis Server\t\t ... \t20%%"
+    install_redis >> $LOG 2>&1; printf "\tDone!\n"
+    printf "Installing MySQL Srever\t\t ... \t25%%"
     install_mysql_server >> $LOG 2>&1; printf "\tDone!\n"
     
-    printf "Installing OpenStack Keystone\t ... \t10%%"
+    printf "Installing OpenStack Keystone\t ... \t40%%"
     install_openstack_keystone >> $LOG 2>&1; printf "\tDone!\n"
-    printf "Installing OpenStack Horizon\t ... \t30%%"
+    printf "Installing OpenStack Horizon\t ... \t60%%"
     install_openstack_horizon >> $LOG 2>&1; printf "\tDone!\n"
-    printf "Installing OpenStack Swift\t ... \t50%%"
+    printf "Installing OpenStack Swift\t ... \t80%%"
     install_openstack_swift >> $LOG 2>&1; printf "\tDone!\n"
     
-    #printf "Installing Storlets\t\t ... \t70%%"
+    #printf "Installing Zion\t\t ... \t90%%"
     #install_storlets >> $LOG 2>&1; printf "\tDone!\n"
-    #printf "Installing Micro-controllers\t ... \t85%%"
-    #install_microcontrollers >> $LOG 2>&1; printf "\tDone!\n"
     #printf "Initializing Test Tenant\t ... \t95%%"
     #initialize_tenant >> $LOG 2>&1; printf "\tDone!\n"
     
     #restart_services >> $LOG 2>&1;
-    #printf "Micro-controllers installation\t ... \t100%%\tCompleted!\n\n"
+    #printf "Zion Storage Functions installation\t ... \t100%%\tCompleted!\n\n"
     #printf "Access the Dashboard with the following URL: http://$IP_ADDRESS/horizon\n"
     #printf "Login with user: vertigo | password: $VERTIGO_TENANT_PASSWD\n\n"
 }

@@ -5,7 +5,7 @@ from ctypes import POINTER
 import ctypes
 
 
-class Bus(object):
+class Bus:
     '''@summary: This class wraps low level C-API for Bus functionality
               to be used with Python
     '''
