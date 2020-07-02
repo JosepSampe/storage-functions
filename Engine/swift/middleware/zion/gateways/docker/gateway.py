@@ -4,7 +4,7 @@ from zion.gateways.docker.worker import Worker
 import time
 
 
-class DockerGateway():
+class DockerGateway:
 
     def __init__(self, be):
         self.be = be

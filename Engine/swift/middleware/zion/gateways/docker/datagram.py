@@ -6,7 +6,7 @@ SBUS_FD_OUTPUT_OBJECT = 1
 SBUS_CMD_NOP = 9
 
 
-class Datagram(object):
+class Datagram:
 
     command_dict_key_name_ = 'command'
     task_id_dict_key_name_ = 'taskId'

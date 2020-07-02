@@ -1,7 +1,7 @@
 package com.urv.zion.runtime.function;
 
 
-import com.ibm.storlet.sbus.SBusDatagram;
+import com.urv.zion.bus.BusDatagram;
 import com.urv.zion.runtime.api.Api;
 import com.urv.zion.runtime.context.Context;
 
@@ -23,7 +23,7 @@ public class FunctionExecutionTask implements Runnable {
 	private Logger logger_;
 	private Properties prop_;
 	private Function function_;
-	private SBusDatagram dtg_;
+	private BusDatagram dtg_;
 	private FileOutputStream functionLog_;
 	private Jedis redis_;
 	
@@ -41,7 +41,7 @@ public class FunctionExecutionTask implements Runnable {
 	/*------------------------------------------------------------------------
 	 * CTOR
 	 * */
-	public FunctionExecutionTask(SBusDatagram dtg, Properties prop, Jedis redis, Function function, FileOutputStream functionLog, Logger logger) {
+	public FunctionExecutionTask(BusDatagram dtg, Properties prop, Jedis redis, Function function, FileOutputStream functionLog, Logger logger) {
 		this.dtg_ = dtg;
 		this.prop_ = prop;
 		this.function_ = function;

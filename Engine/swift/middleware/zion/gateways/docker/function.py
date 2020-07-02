@@ -8,7 +8,7 @@ MEMORY_HEADER = "X-Object-Meta-Function-Memory"
 MAIN_HEADER = "X-Object-Meta-Function-Main"
 
 
-class Function(object):
+class Function:
     """
     Function main class.
     """
