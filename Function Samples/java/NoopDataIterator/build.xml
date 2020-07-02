@@ -2,17 +2,17 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<javac srcdir="src/com/urv/blackeagle/function/noopdataiterator/" destdir="build" includeantruntime="false">
+		<javac srcdir="src/com/urv/zion/function/noopdataiterator/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement 
-		        	path="../blackeagle-runtime-1.0.jar"/>
+		        	path="../ZionDockerDaemon-1.0.jar"/>
 				<pathelement 
 					path="lib/json-simple-1.1.1.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="build/nop-data-iterator-1.0.jar"
 	        basedir="build"
-	     	includes="com/urv/blackeagle/function/noopdataiterator/*">
+	     	includes="com/urv/zion/function/noopdataiterator/*">
 	    </jar>
 	</target>
 	

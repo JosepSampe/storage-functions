@@ -1,12 +1,12 @@
 <project>
 	<target name="compile">
 		<mkdir dir="build" />
-		<copy todir="build/com/urv/blackeagle/function/blurfaces/">
+		<copy todir="build/com/urv/zion/function/blurfaces/">
 		       <fileset dir="src/resources" includes="**/*.xml"/>
 		</copy>
 		<javac srcdir="src/" destdir="build" includeantruntime="false">
 			<classpath>
-		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+		        <pathelement path="../ZionDockerDaemon-1.0.jar"/>
 				<pathelement path="lib/commons-io-2.5.jar"/>
 				<pathelement path="lib/opencv-320.jar"/>
 			</classpath>		

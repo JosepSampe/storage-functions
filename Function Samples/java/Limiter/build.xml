@@ -2,14 +2,14 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<javac srcdir="src/com/urv/blackeagle/function/limiter/" destdir="build" includeantruntime="false">
+		<javac srcdir="src/com/urv/zion/function/limiter/" destdir="build" includeantruntime="false">
 			<classpath>
-		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+		        <pathelement path="../ZionDockerDaemon-1.0.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="build/access-limiter-1.0.jar"
 	          basedir="build"
-	     	  includes="com/urv/blackeagle/function/limiter/*">
+	     	  includes="com/urv/zion/function/limiter/*">
 	    </jar>
 		
 	</target>

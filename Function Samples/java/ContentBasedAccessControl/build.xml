@@ -2,15 +2,15 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<javac srcdir="src/com/urv/blackeagle/function/cbac/" destdir="build" includeantruntime="false">
+		<javac srcdir="src/com/urv/zion/function/cbac/" destdir="build" includeantruntime="false">
 			<classpath>
 		        <pathelement 
-		        	path="../blackeagle-runtime-1.0.jar"/>
+		        	path="../ZionDockerDaemon-1.0.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="build/cbac-1.0.jar"
 	        basedir="build"
-	     	includes="com/urv/blackeagle/function/cbac/*">
+	     	includes="com/urv/zion/function/cbac/*">
 	    </jar>
 	</target>
 	

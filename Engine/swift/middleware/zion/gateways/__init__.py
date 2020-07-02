@@ -1,4 +1,4 @@
-from blackeagle.gateways.docker.gateway import DockerGateway
+from zion.gateways.docker.gateway import DockerGateway
 
 
 __all__ = [

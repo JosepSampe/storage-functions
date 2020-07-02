@@ -2,14 +2,14 @@
 
 	<target name="compile">
 		<mkdir dir="build" />
-		<javac srcdir="src/com/urv/blackeagle/function/encryption/" destdir="build" includeantruntime="false">
+		<javac srcdir="src/com/urv/zion/function/encryption/" destdir="build" includeantruntime="false">
 			<classpath>
-		        <pathelement path="../blackeagle-runtime-1.0.jar"/>
+		        <pathelement path="../ZionDockerDaemon-1.0.jar"/>
 			</classpath>		
 		</javac>
 	    <jar destfile="build/encryption-1.0.jar"
 	         basedir="build"
-	     	 includes="com/urv/blackeagle/function/encryption/*">
+	     	 includes="com/urv/zion/function/encryption/*">
 	    </jar>
 	</target>
 	
