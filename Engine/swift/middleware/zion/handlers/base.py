@@ -40,7 +40,7 @@ class BaseHandler(object):
     def __init__(self, req, conf, app, logger, redis):
         """
         :param req: swob.Request instance
-        :param conf: gatway conf dict
+        :param conf: gateway conf dict
         """
         self.req = req
         self.conf = conf

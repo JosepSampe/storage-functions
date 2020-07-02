@@ -1,0 +1,52 @@
+<project>
+
+	<target name="clean">
+		<delete dir="bin" />
+		<delete file="com_urv_zion_bus_JNI.h"/>
+	</target>
+
+	<target name="java">
+		<mkdir dir="bin" />
+		<javac 
+		    srcdir="src" 
+		    destdir="bin"
+			nativeheaderdir="."
+		    classpath="lib/json_simple-1.1.jar"
+			includeantruntime="false"/>
+	</target>
+
+	<target name="so" depends="java">
+		<exec dir="." executable="gcc">
+			<arg line="-shared -o bin/libjbus.so -fPIC"/>
+			<arg line="-I/usr/lib/jvm/default-java/include" />
+			<arg line="-I/usr/lib/jvm/default-java/include/linux/" />
+			<arg line="-I../TransportLayer" />
+			<arg line="BusJNI.c ../TransportLayer/bus.c" />
+		</exec>
+	</target>
+
+	<target name="jar" depends="so">
+		<jar destfile="SBusJavaFacade.jar" basedir="bin">
+			<manifest>
+				<attribute name="Main-Class" 
+					       value="com.urv.zion.bus.Bus" />
+			</manifest>
+		</jar>
+		<move file="SBusJavaFacade.jar" todir="bin/"/>
+	</target>
+	
+	<target name="cleancom">
+			<delete dir="bin/com" />
+	</target>
+	
+    <target name="copy">
+        <copy todir="../../compute/runtime/java/lib">
+           <fileset dir="bin" includes="SBusJavaFacade.jar"/>
+           <fileset dir="bin" includes="libjbus.so"/>
+        </copy>
+    </target>
+	
+    <target name="build" depends="clean, jar, cleancom, copy">
+    </target>
+	
+</project>

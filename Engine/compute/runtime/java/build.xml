@@ -19,7 +19,7 @@
 			</classpath>
 		</javac>
 
-	     <jar destfile="bin/zion-runtime-1.0.jar" 
+	     <jar destfile="bin/ZionDockerDaemon-1.0.jar" 
 	          basedir="bin"
 	     	  includes="**/*.class">
 	     </jar>
@@ -27,7 +27,7 @@
 	
 	<target name="copy">
         <copy todir="../../../../Function Samples/java/">
-           <fileset dir="bin" includes="zion-runtime-1.0.jar"/>
+           <fileset dir="bin" includes="ZionDockerDaemon-1.0.jar"/>
         </copy>
 	</target>
 	

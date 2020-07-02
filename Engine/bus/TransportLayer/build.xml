@@ -1,0 +1,15 @@
+<project>
+	<target name="so">
+        <mkdir dir="bin" />
+		<exec dir="." executable="gcc">
+			<arg line="-shared -o bin/bus.so bus.c -O2 -fPIC" />
+		</exec>
+	</target>
+
+	<target name="clean">
+        <delete dir="bin" />
+	</target>
+
+	<target name="build" depends="clean, so">
+	</target>
+</project>

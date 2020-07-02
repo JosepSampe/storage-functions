@@ -176,7 +176,6 @@ install_openstack_swift(){
     apt install xfsprogs rsync -y
     
     mkdir /etc/swift
-    #chown $(whoami):$(whoami) /etc/swift
 
     curl -o /etc/swift/proxy-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/proxy-server.conf-sample
     curl -o /etc/swift/account-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/account-server.conf-sample
@@ -248,137 +247,52 @@ install_openstack_swift(){
 
 }
 
-##### Install Storlets #####
-install_storlets(){
-    add-apt-repository -y ppa:webupd8team/java
-    apt update
-    apt install gcc openjdk-8-jdk openjdk-8-jre -y
-    #echo debconf shared/accepted-oracle-license-v1-1 select true | sudo debconf-set-selections
-    #echo debconf shared/accepted-oracle-license-v1-1 seen true | sudo debconf-set-selections
-    #apt install oracle-java8-installer -y
-    
-    # Install Docker
+##### Install Docker #####
+install_docker(){
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
     apt-key fingerprint 0EBFCD88
     sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
     apt update
     apt install aufs-tools linux-image-generic apt-transport-https docker-ce ansible ant -y
-    
-    cat <<-EOF >> /etc/docker/daemon.json
-    {
-    "data-root": "/home/docker_device/docker"
-    }
-    EOF
-    
-    mkdir /home/docker_device
-    chmod 777 /home/docker_device
-    service docker stop
-    service docker start
-    
-    # Install Storlets
-    git clone https://github.com/openstack/storlets -b stable/pike
-    pip install storlets/
-    cd storlets
-    ./install_libs.sh
-    
-    # Install host-side scripts
-    mkdir /home/docker_device/scripts
-    chown swift:swift /home/docker_device/scripts
-    cp scripts/restart_docker_container /home/docker_device/scripts/
-    cp scripts/send_halt_cmd_to_daemon_factory.py /home/docker_device/scripts/
-    chown root:root /home/docker_device/scripts/*
-    chmod 04755 /home/docker_device/scripts/*
-    
-    # Create Storlet docker runtime
-    sed -i "/ansible-playbook \-s \-i deploy\/prepare_host prepare_storlets_install.yml/c\ansible-playbook \-s \-i deploy\/prepare_host prepare_storlets_install.yml --connection=local" install/storlets/prepare_storlets_install.sh
-    install/storlets/prepare_storlets_install.sh dev host
-    
-    cd install/storlets/
-    SWIFT_UID=$(id -u swift)
-    SWIFT_GID=$(id -g swift)
-    sed -i '/- role: docker_client/c\  #- role: docker_client' docker_cluster.yml
-    sed -i '/"swift_user_id": "1003"/c\\t"swift_user_id": "'$SWIFT_UID'",' deploy/cluster_config.json
-    sed -i '/"swift_group_id": "1003"/c\\t"swift_group_id": "'$SWIFT_GID'",' deploy/cluster_config.json
-    ansible-playbook -s -i storlets_dynamic_inventory.py docker_cluster.yml --connection=local
-    docker rmi ubuntu_16.04_jre8 ubuntu:16.04 ubuntu_16.04 -f
-    cd ~
-
-    cat <<-EOF >> /etc/swift/proxy-server.conf  
-    
-    [filter:storlet_handler]
-    use = egg:storlets#storlet_handler
-    storlet_container = storlet
-    storlet_logcontainer = storletlog
-    storlet_execute_on_proxy_only = false
-    storlet_gateway_module = docker
-    storlet_gateway_conf = /etc/swift/storlet_docker_gateway.conf
-    execution_server = proxy
-    EOF
-    
-    cat <<-EOF >> /etc/swift/object-server.conf
-    
-    [filter:storlet_handler]
-    use = egg:storlets#storlet_handler
-    storlet_container = storlet
-    storlet_gateway_module = docker
-    storlet_gateway_conf = /etc/swift/storlet_docker_gateway.conf
-    storlet_execute_on_proxy_only = false
-    execution_server = object
-    storlet_daemon_thread_pool_size = 4
-    EOF
-    
-    cat <<-EOF >> /etc/swift/storlet_docker_gateway.conf
-    [DEFAULT]
-    lxc_root = /home/docker_device/scopes
-    cache_dir = /home/docker_device/cache/scopes
-    log_dir = /home/docker_device/logs/scopes
-    script_dir = /home/docker_device/scripts
-    storlets_dir = /home/docker_device/storlets/scopes
-    pipes_dir = /home/docker_device/pipes/scopes
-    docker_repo = 
-    restart_linux_container_timeout = 8
-    storlet_timeout = 40
-    EOF
-    
-    cp /etc/swift/proxy-server.conf /etc/swift/storlet-proxy-server.conf
-    sed -i '/^pipeline =/ d' /etc/swift/storlet-proxy-server.conf
-    sed -i '/\[pipeline:main\]/a pipeline = proxy-logging cache slo proxy-logging proxy-server' /etc/swift/storlet-proxy-server.conf
-    rm -r storlets  
 }
 
-
-#### Install micro-controllers #####
-install_microcontrollers(){
-    
+##### Install Redis #####
+install_redis(){
     apt install redis-server -y
     sed -i '/bind 127.0.0.1/c\bind 0.0.0.0' /etc/redis/redis.conf
     service redis restart
-    pip install -U redis
+    pip3 install -U redis
+}
+
+
+#### Install Zion #####
+install_zion(){
     
-    git clone https://github.com/JosepSampe/micro-controllers
-    pip install -U micro-controllers/Engine/swift
+    git clone https://github.com/JosepSampe/data-driven-functions
+    pip3 install -U data-driven-functions/Engine/swift
     
     cat <<-EOF >> /etc/swift/proxy-server.conf
     
-    [filter:vertigo_handler]
-    use = egg:swift-vertigo#vertigo_handler
+    [filter:storage_functions]
+    use = egg:swift-zion#zion_handler
     execution_server = proxy
     redis_host = $IP_ADDRESS
     EOF
     
     cat <<-EOF >> /etc/swift/object-server.conf
     
-    [filter:vertigo_handler]
-    use = egg:swift-vertigo#vertigo_handler
-    execution_server = object
+    [filter:storage_functions]
+    use = egg:swift-zion#zion_handler
+    execution_server = compute
+    redis_host = $IP_ADDRESS
     EOF
     
 
     sed -i '/^pipeline =/ d' /etc/swift/proxy-server.conf
-    sed -i '/\[pipeline:main\]/a pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas vertigo_handler storlet_handler slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
+    sed -i '/\[pipeline:main\]/a pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas storage_functions slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
     
     sed -i '/^pipeline =/ d' /etc/swift/object-server.conf
-    sed -i '/\[pipeline:main\]/a pipeline = healthcheck recon vertigo_handler storlet_handler object-server' /etc/swift/object-server.conf
+    sed -i '/\[pipeline:main\]/a pipeline = healthcheck recon storage_functions object-server' /etc/swift/object-server.conf
     
 
     mkdir -p /opt/vertigo
