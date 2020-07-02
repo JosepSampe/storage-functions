@@ -5,7 +5,7 @@ import random
 import os
 
 
-class Worker(object):
+class Worker:
     """
     Worker main class.
     """

@@ -8,7 +8,8 @@ import java.io.InputStream;
 import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Level;
 import redis.clients.jedis.Jedis;
-import com.ibm.storlet.sbus.*;
+
+import com.urv.zion.bus.*;
 import com.urv.zion.runtime.function.Function;
 import com.urv.zion.runtime.function.FunctionExecutionTask;
 
@@ -17,10 +18,10 @@ import java.util.Properties;
 
 
 
-public class DockerDaemon {
+public class ZionDockerDaemon {
 
 	private static ch.qos.logback.classic.Logger logger_;
-	private static SBus bus_;
+	private static Bus bus_;
 	private static Function function_ = null;
 	private static FileOutputStream functionLog_;
 	
@@ -35,7 +36,7 @@ public class DockerDaemon {
 		Level newLevel = Level.toLevel(strLogLevel);
 		boolean bStatus = true;
 		try {
-			logger_ = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("DockerDaemon");
+			logger_ = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("ZionDockerDaemon");
 			logger_.setLevel(newLevel);
 			logger_.info("Logger Started");
 		} catch (Exception e) {
@@ -70,7 +71,7 @@ public class DockerDaemon {
 
 		logger_.trace("Instanciating Bus");
 		System.out.println("Instanciating Bus");
-		bus_ = new SBus(strContId);
+		bus_ = new Bus(strContId);
 		
 		try{
 			logger_.trace("Loading configuration file "+configFile);
@@ -116,7 +117,7 @@ public class DockerDaemon {
 			}
 
 			logger_.trace("Calling receive");
-			SBusDatagram dtg = null;
+			BusDatagram dtg = null;
 			try {
 				dtg = bus_.receive();
 				logger_.trace("Receive returned");
@@ -132,7 +133,7 @@ public class DockerDaemon {
 		}
 	}
 	
-	private static void processDatagram(SBusDatagram dtg){
+	private static void processDatagram(BusDatagram dtg){
 		int command = dtg.getNFiles();
 
 		/*

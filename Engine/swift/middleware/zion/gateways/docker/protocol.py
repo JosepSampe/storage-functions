@@ -10,7 +10,7 @@ import sys
 eventlet.monkey_patch()
 
 
-class Protocol(object):
+class Protocol:
 
     def __init__(self, worker, object_stream, object_metadata,
                  request_headers, function_parameters, be):
