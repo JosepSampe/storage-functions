@@ -22,16 +22,18 @@ REDIS_CONN_POOL = redis.ConnectionPool(host='localhost', port=6379, db=10)
 TOTAL_CPUS = psutil.cpu_count()
 HIGH_CPU_THRESHOLD = 90
 LOW_CPU_THRESHOLD = 0.10
-WORKERS = 4
+WORKERS = TOTAL_CPUS
 WORKER_TIMEOUT = 30  # seconds
 TIMEOUT_TO_GROW_UP = 5  # seconds
+
 # DIRS
-ZION_DIR = '/opt/zion'
-MAIN_DIR = '/home/docker_device/zion/'
+MAIN_DIR = '/opt/zion/'
+RUNTIME_DIR = MAIN_DIR+'runtime/java/'
 WORKERS_DIR = MAIN_DIR+'workers/'
 FUNCTIONS_DIR = MAIN_DIR+'functions/'
 POOL_DIR = MAIN_DIR+'docker_pool/'
-DOCKER_IMAGE = '192.168.2.1:5001/zion'
+DOCKER_IMAGE = 'adoptopenjdk/openjdk11:x86_64-ubuntu-jdk11u-nightly'
+
 # Headers
 TIMEOUT_HEADER = "X-Object-Meta-Function-Timeout"
 MEMORY_HEADER = "X-Object-Meta-Function-Memory"
@@ -46,7 +48,7 @@ def init_logger():
     logger = logging.getLogger('zion_service')
     logger.setLevel(logging.DEBUG)
     # create file handler which logs even debug messages
-    fh = logging.FileHandler('/var/log/zion/zion-service.log')
+    fh = logging.FileHandler('/opt/zion/service/zion_service.log')
     fh.setLevel(logging.DEBUG)
     # create console handler with a higher log level
     ch = logging.StreamHandler(sys.stdout)
@@ -60,6 +62,7 @@ def init_logger():
     logger.addHandler(ch)
 
     return logger
+
 
 logger = init_logger()
 
@@ -83,6 +86,7 @@ class Container(Thread):
         self.stopped = False
         self.container = None
         self.docker_dir = POOL_DIR+self.name
+        self.runtime_dir = self.docker_dir+'/runtime'
         self.channel_dir = self.docker_dir+'/channel'
         self.function_dir = self.docker_dir+'/function'
         self.worker_dir = None
@@ -96,15 +100,18 @@ class Container(Thread):
         logger.info("Creating container structure: "+self.docker_dir)
         if os.path.exists(self.function_dir):
             shutil.rmtree(self.function_dir)
-        if not os.path.exists(self.docker_dir):
-            p = Popen(['cp', '-p', '-R', ZION_DIR, self.docker_dir])
-            p.wait()
+
+        if not os.path.exists(self.runtime_dir):
+            os.makedirs(self.runtime_dir)
+            os.system('cp -p -R {} {}'.format(RUNTIME_DIR, self.runtime_dir))
+
+        if not os.path.exists(self.channel_dir):
             os.makedirs(self.channel_dir)
-            os.chown(self.channel_dir, swift_uid, swift_gid)
+            # os.chown(self.channel_dir, swift_uid, swift_gid)
 
     def _start_container(self):
         logger.info("Starting container: "+self.name)
-        command = 'debug "/opt/zion/runtime/java/start_daemon.sh"'
+        command = '/opt/zion/runtime/java/start_daemon.sh {}'.format(self.id)
         vols = {'/dev/log': {'bind': '/dev/log', 'mode': 'rw'},
                 self.docker_dir: {'bind': '/opt/zion', 'mode': 'rw'}}
         self.container = self.c.containers.run(DOCKER_IMAGE, command, cpuset_cpus=self.id,
@@ -114,6 +121,7 @@ class Container(Thread):
     def run(self):
         self._create_directory_structure()
         self._start_container()
+        print('----')
         try:
             for stats in self.c.api.stats(self.name, decode=True):
                 if not self.stopped:
@@ -351,16 +359,22 @@ def monitoring(containers):
 
 
 def stop_containers():
+    logger.info('Configuring docker from env')
     c = docker.from_env()
+    logger.info('Creating redis connection')
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
+
+    logger.info('Going to kill all strated conntainers...')
     for container in c.containers.list(all=True):
         if container.name.startswith("zion"):
             logger.info("Killing container: "+container.name)
             container.remove(force=True)
+
     r.delete("available_dockers")
     workers_list = r.keys('workers*')
     for workers_list_id in workers_list:
         r.delete(workers_list_id)
+
     if os.path.exists(WORKERS_DIR):
         shutil.rmtree(WORKERS_DIR)
     if os.path.exists(POOL_DIR):
@@ -368,12 +382,13 @@ def stop_containers():
 
 
 def start_containers(containers):
+    logger.info('Starting containers in pool...')
     if not os.path.exists(WORKERS_DIR):
         os.makedirs(WORKERS_DIR)
-    os.chown(WORKERS_DIR, swift_uid, swift_gid)
+    #os.chown(WORKERS_DIR, swift_uid, swift_gid)
     if not os.path.exists(POOL_DIR):
         os.makedirs(POOL_DIR)
-    os.chown(POOL_DIR, swift_uid, swift_gid)
+    #os.chown(POOL_DIR, swift_uid, swift_gid)
     for cid in range(WORKERS):
         container = Container(cid)
         containers[cid] = container
@@ -381,6 +396,7 @@ def start_containers(containers):
 
 
 def main():
+    logger.info('Starting Zion Service')
     containers = dict()
     try:
         # Kill all already started Zion containers

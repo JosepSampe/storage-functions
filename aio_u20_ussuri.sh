@@ -55,6 +55,7 @@ install_docker(){
     sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
     apt update
     apt install aufs-tools linux-image-generic apt-transport-https docker-ce ansible ant -y
+    pip3 install docker
     docker pull adoptopenjdk/openjdk11:x86_64-ubuntu-jdk11u-nightly
 }
 
@@ -273,6 +274,7 @@ install_zion(){
     
     git clone https://github.com/JosepSampe/storage-functions
     pip3 install -U storage-functions/Engine/swift/middleware
+    pip3 install -U psutil
     
     cat <<-EOF >> /etc/swift/proxy-server.conf
     
@@ -299,20 +301,24 @@ install_zion(){
     sed -i '/\[pipeline:main\]/a pipeline = healthcheck recon storage_functions object-server' /etc/swift/object-server.conf
     
 
-    mkdir -p /opt/zion/runtime
-    cp storage-functions/Engine/compute/runtime/java/bin/ZionDockerDaemon-1.0.jar /opt/zion/runtime
-    cp storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime
-    cp storage-functions/Engine/compute/runtime/java/start_daemon.sh /opt/zion/runtime
-    cp storage-functions/Engine/compute/runtime/java/logback.xml /opt/zion/runtime
+    mkdir -p /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/bin/ZionDockerDaemon-1.0.jar /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/start_daemon.sh /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/logback.xml /opt/zion/runtime/java
  
-    cp storage-functions/Engine/compute/runtime/worker.config /opt/zion/runtime
+    cp storage-functions/Engine/compute/runtime/worker.config /opt/zion/runtime/java
  
-    cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime
-    cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime
-    cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime/java
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime/java
+    cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime/java
     
-    sed -i "/host_ip=127.0.0.1/c\swift_ip=$IP_ADDRESS" /opt/zion/runtime/worker.config
-    #sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/zion/runtime/worker.config
+    sed -i "/host_ip=127.0.0.1/c\swift_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
+    #sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
+    
+    
+    mkdir -p /opt/zion/service
+    cp storage-functions/Engine/compute/service/zion_service.py /opt/zion/service
     
     chown -R $(logname):$(logname) /opt/zion
     
