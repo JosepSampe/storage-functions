@@ -4,11 +4,12 @@ host = "10.30.223.232"
 user = "zion"
 password = "zion"
 
-# os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/swift/middleware', user, host, 'josep/zion/swift'))
+os.system('sshpass -p %s ssh %s@%s "%s" > /dev/null' % (password, user, host, 'mkdir -p zion/swift/middleware'))
+os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/swift/middleware', user, host, 'zion/swift'))
 
 # os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/runtime/java/bin/zion-runtime-1.0.jar', user, host, 'josep/zion/runtime/java/'))
 
-os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/service', user, host, 'josep/zion'))
+# os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/service', user, host, 'josep/zion'))
 
 # os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/runtime/java/start_daemon.sh', user, host, 'josep/zion/runtime/java/'))
 
@@ -17,6 +18,6 @@ os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/ser
 
 print "--> FILES UPLOADED"
 
-os.system('sshpass -p %s ssh %s@%s "%s" > /dev/null' % (password, user, host, 'sudo josep/copy_zion.sh'))
+os.system('sshpass -p %s ssh %s@%s "%s" > /dev/null' % (password, user, host, 'sudo swift-init main restart'))
 
 print "--> FINISH"

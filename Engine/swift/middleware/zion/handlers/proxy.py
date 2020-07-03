@@ -17,13 +17,13 @@ class ProxyHandler(BaseHandler):
         self.disaggregated_compute = self.conf["disaggregated_compute"]
         self.functions_container = self.conf["functions_container"]
         self.compute_nodes = self.conf["compute_nodes"]
-        self.req.headers['function-enabled'] = True
+        self.req.headers['functions-enabled'] = True
 
     def _parse_vaco(self):
         return self.req.split_path(3, 4, rest_with_last=True)
 
     def _get_functions(self):
-        function_data = dict()
+        functions_data = dict()
 
         self.function_list = None
         self.parent_function_list = None
@@ -45,14 +45,14 @@ class ProxyHandler(BaseHandler):
             if self.parent_function_list:
                 for key in self.parent_function_list:
                     if key in keys:
-                        function_data[key] = self.parent_function_list[key]
+                        functions_data[key] = self.parent_function_list[key]
 
             if self.function_list:
                 for key in self.function_list:
                     if key in keys:
-                        function_data[key] = self.function_list[key]
+                        functions_data[key] = self.function_list[key]
 
-        return function_data
+        return functions_data
 
     def handle_request(self):
         if hasattr(self, self.method) and self.is_valid_request:
@@ -195,7 +195,7 @@ class ProxyHandler(BaseHandler):
 
         return conn, path
 
-    def _handle_get_through_compute_node(self, functions_data):
+    def _handle_get_through_compute_node(self):
         conn, path = self._prepare_connection()
         conn.request(self.method, path, None, self.req.headers)
         resp = conn.getresponse()
@@ -232,7 +232,7 @@ class ProxyHandler(BaseHandler):
         if functions_data:
             self.logger.info('There are functions to execute: ' +
                              str(functions_data))
-            self.req.headers['function_data'] = functions_data
+            self.req.headers['functions_data'] = functions_data
             if self.disaggregated_compute:
                 response = self._handle_get_through_compute_node()
             else:
@@ -262,7 +262,7 @@ class ProxyHandler(BaseHandler):
         elif functions_data:
             self.logger.info('There are functions to execute: ' +
                              str(functions_data))
-            self.req.headers['function_data'] = functions_data
+            self.req.headers['functions_data'] = functions_data
             if self.disaggregated_compute:
                 return self._handle_put_through_compute_node()
             else:

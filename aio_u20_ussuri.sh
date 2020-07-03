@@ -55,6 +55,7 @@ install_docker(){
     sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
     apt update
     apt install aufs-tools linux-image-generic apt-transport-https docker-ce ansible ant -y
+    docker pull adoptopenjdk/openjdk11:x86_64-ubuntu-jdk11u-nightly
 }
 
 
@@ -324,16 +325,10 @@ initialize_tenant(){
     # Initialize Zion test tenant
     . zion-openrc
     PROJECT_ID=$(openstack token issue | grep -w project_id | awk '{print $4}')
-    docker pull adoptopenjdk/openjdk11:x86_64-ubuntu-jdk11u-nightly
-
+ 
     swift post functions
-
-    #swift post -H "X-account-meta-functions-enabled:True"
-    
-    mkdir -p /opt/zion/scopes/${PROJECT_ID:0:13}/
-    cp /opt/vertigo/* /home/docker_device/vertigo/scopes/${PROJECT_ID:0:13}/
-    chown -R swift:swift /home/docker_device/vertigo/scopes/
-    
+    swift post -H "X-account-meta-functions-enabled:True"
+     
     gpasswd -a "$(logname)" docker
     usermod -aG docker swift
     
@@ -379,15 +374,15 @@ install_zion(){
     printf "Installing OpenStack Swift\t ... \t80%%"
     install_openstack_swift >> $LOG 2>&1; printf "\tDone!\n"
     
-    #printf "Installing Zion\t\t ... \t90%%"
-    #install_storlets >> $LOG 2>&1; printf "\tDone!\n"
-    #printf "Initializing Test Tenant\t ... \t95%%"
-    #initialize_tenant >> $LOG 2>&1; printf "\tDone!\n"
+    printf "Installing Zion\t\t ... \t90%%"
+    install_storlets >> $LOG 2>&1; printf "\tDone!\n"
+    printf "Initializing Test Tenant\t ... \t95%%"
+    initialize_tenant >> $LOG 2>&1; printf "\tDone!\n"
     
-    #restart_services >> $LOG 2>&1;
-    #printf "Zion Storage Functions installation\t ... \t100%%\tCompleted!\n\n"
-    #printf "Access the Dashboard with the following URL: http://$IP_ADDRESS/horizon\n"
-    #printf "Login with user: vertigo | password: $VERTIGO_TENANT_PASSWD\n\n"
+    restart_services >> $LOG 2>&1;
+    printf "Zion Storage Functions installation\t ... \t100%%\tCompleted!\n\n"
+    printf "Access the Dashboard with the following URL: http://$IP_ADDRESS/horizon\n"
+    printf "Login with user: zion | password: $ZION_TENANT_PASSWD\n\n"
 }
 
 

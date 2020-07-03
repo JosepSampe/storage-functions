@@ -13,15 +13,14 @@ class ComputeHandler(BaseHandler):
         return self.req.split_path(3, 4, rest_with_last=True)
 
     def _get_functions(self):
-        self.function_data = eval(self.req.headers.pop('function_data'))
+        return eval(self.req.headers.pop('functions_data'))
 
     def is_valid_request(self):
-        return 'function_data' in self.req.headers
+        return 'functions_data' in self.req.headers
 
     def handle_request(self):
         if hasattr(self, self.method) and self.is_valid_request():
             try:
-                self._get_functions()
                 handler = getattr(self, self.method)
                 getattr(handler, 'publicly_accessible')
             except AttributeError:
@@ -35,9 +34,10 @@ class ComputeHandler(BaseHandler):
         """
         GET handler on Compute node
         """
+        functions_data = self._get_functions()
         self.response = self.req.get_response(self.app)
         # self.response = Response(body="Test", headers=self.req.headers)
-        self.apply_function_onget()
+        self.apply_function_onget(functions_data)
 
         return self.response
 
@@ -46,4 +46,5 @@ class ComputeHandler(BaseHandler):
         """
         PUT handler on Compute node
         """
-        return self.apply_function_onput()
+        functions_data = self._get_functions()
+        return self.apply_function_onput(functions_data)

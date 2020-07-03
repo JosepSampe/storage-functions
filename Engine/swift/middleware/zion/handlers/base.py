@@ -165,8 +165,14 @@ class BaseHandler(object):
         return 'X-Copy-From' in self.req.headers
 
     @property
-    def is_function_enabled(self):
-        return self.req.headers['functions-enabled'] == 'True'
+    def is_functions_enabled(self):
+        enabled = 'functions-enabled' in self.req.headers and \
+            self.req.headers['functions-enabled'] == 'True'
+
+        if enabled:
+            self.logger.info('Zion Storage Functions framework '
+                             'is enabled for this account')
+        return enabled
 
     @property
     def is_function_set_to_container(self):
@@ -183,7 +189,7 @@ class BaseHandler(object):
         """
         mandatory = all([not self.is_copy_request,
                          not self.is_slo_get_request,
-                         self.is_function_enabled,
+                         self.is_functions_enabled,
                          not self.is_functions_container_request])
 
         optional = any([self.is_function_set_to_container,
@@ -294,13 +300,13 @@ class BaseHandler(object):
                                      headers={'etag': ''},
                                      request=self.req)
 
-    def apply_function_onput(self):
+    def apply_function_onput(self, functions_data):
         """
         Call gateway module to get result of function execution
         in PUT flow
         """
-        if self.function_data:
-            function_info = eval(self.function_data['onput'])
+        if functions_data:
+            function_info = eval(functions_data['onput'])
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
             docker_gateway = self._setup_docker_gateway()
@@ -310,13 +316,13 @@ class BaseHandler(object):
         else:
             return self.req.get_response(self.app)
 
-    def apply_function_onget(self):
+    def apply_function_onget(self, functions_data):
         """
         Call gateway module to get result of function execution
         in GET flow
         """
-        if self.function_data:
-            function_info = eval(self.function_data['onget'])
+        if functions_data:
+            function_info = eval(functions_data['onget'])
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
             docker_gateway = self._setup_docker_gateway()
