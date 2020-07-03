@@ -270,8 +270,8 @@ install_openstack_swift(){
 #### Install Zion #####
 install_zion(){
     
-    git clone https://github.com/JosepSampe/data-driven-functions
-    pip3 install -U data-driven-functions/Engine/swift
+    git clone https://github.com/JosepSampe/storage-functions
+    pip3 install -U storage-functions/Engine/swift
     
     cat <<-EOF >> /etc/swift/proxy-server.conf
     
@@ -297,19 +297,20 @@ install_zion(){
     sed -i '/\[pipeline:main\]/a pipeline = healthcheck recon storage_functions object-server' /etc/swift/object-server.conf
     
 
-    mkdir -p /opt/vertigo
-    cp micro-controllers/Engine/runtime/bin/DockerDaemon.jar /opt/vertigo
-    cp micro-controllers/Engine/runtime/lib/spymemcached-2.12.1.jar /opt/vertigo
-    cp micro-controllers/Engine/runtime/lib/jedis-2.9.0.jar /opt/vertigo
-    cp micro-controllers/Engine/runtime/utils/start_daemon.sh /opt/vertigo
-    cp micro-controllers/Engine/runtime/utils/logback.xml /opt/vertigo
-    cp micro-controllers/Engine/runtime/utils/docker_daemon.config /opt/vertigo
-    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/BusDockerJavaFacade.jar /opt/vertigo
-    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/vertigo
-    cp micro-controllers/Engine/bus/TransportLayer/bin/bus.so /opt/vertigo
+    mkdir -p /opt/zion/runtime
+    cp storage-functions/Engine/runtime/java/bin/ZionDockerDaemon.jar /opt/zion/runtime
+    cp micro-controllers/Engine/runtime/java/lib/* /opt/zion/runtime
+
+    cp micro-controllers/Engine/runtime/java/start_daemon.sh /opt/zion/runtime
+    cp micro-controllers/Engine/runtime/java/logback.xml /opt/zion/runtime
+    cp micro-controllers/Engine/runtime/worker.config /opt/zion/runtime
     
-    sed -i "/swift_ip=/c\swift_ip=$IP_ADDRESS" /opt/vertigo/docker_daemon.config
-    sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/vertigo/docker_daemon.config
+    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade /opt/zion/runtime
+    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime
+    cp micro-controllers/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime
+    
+    sed -i "/host_ip=127.0.0.1/c\swift_ip=$IP_ADDRESS" /opt/zion/runtime/worker.config
+    #sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/zion/runtime/worker.config
     
     swift-init main restart
 }

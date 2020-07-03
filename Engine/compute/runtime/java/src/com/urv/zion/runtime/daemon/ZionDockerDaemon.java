@@ -64,7 +64,7 @@ public class ZionDockerDaemon {
 		String strLogLevel = args[1];
 		String strContId = args[3];
 		
-		System.out.println("Initializing Docker Daemon");
+		System.out.println("Initializing Zion Docker Daemon");
 		
 		if (initLog(strLogLevel) == false)
 			return;

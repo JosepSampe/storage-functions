@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-paste_factory = ['storage_functions = '
+paste_factory = ['zion_handler = '
                  'zion.function_handler:filter_factory']
 
 setup(

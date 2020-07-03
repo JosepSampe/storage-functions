@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM python:3.8-slim-buster
 
 MAINTAINER Josep Sampe version: 0.0.1
 
@@ -23,11 +23,11 @@ apt-get clean
 
 # Clone Zion GIT repository
 RUN mkdir /home/zion
-RUN git clone https://github.com/JosepSampe/data-driven-functions /home/zion/zion_framework
+RUN git clone https://github.com/JosepSampe/storage-functions /home/zion/zion_framework
 RUN mkdir /var/log/be
 
 # Update PIP and python-redis
-RUN pip install --upgrade pip redis docker psutil
+RUN pip install --upgrade pip3 redis docker psutil
 
 # Install Zion via PIP
 RUN pip install --upgrade /home/zion/zion_framework/Engine/swift/middleware/
