@@ -49,7 +49,7 @@ class BaseHandler(object):
         self.redis = redis
         self.method = self.req.method
         self.execution_server = conf["execution_server"]
-        self.functions_container = conf.get('function_container')
+        self.functions_container = conf.get('functions_container')
         self.available_set_headers = ['X-Function-Onput',
                                       'X-Function-Onget',
                                       'X-Function-Onget-Before',
@@ -77,7 +77,7 @@ class BaseHandler(object):
         self.req.headers['X-Container'] = self.container
         self.req.headers['X-Object'] = self.obj
 
-        self.docker_gateway = DockerGateway(self)
+        return DockerGateway(self)
 
     def _extract_vaco(self):
         """
@@ -166,7 +166,7 @@ class BaseHandler(object):
 
     @property
     def is_function_enabled(self):
-        return self.req.headers['function-enabled'] == 'True'
+        return self.req.headers['functions-enabled'] == 'True'
 
     @property
     def is_function_set_to_container(self):
@@ -303,8 +303,8 @@ class BaseHandler(object):
             function_info = eval(self.function_data['onput'])
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
-            self._setup_docker_gateway()
-            function_resp = self.docker_gateway.execute_function(function_info)
+            docker_gateway = self._setup_docker_gateway()
+            function_resp = docker_gateway.execute_function(function_info)
 
             return self._process_function_response_onput(function_resp)
         else:
@@ -319,8 +319,8 @@ class BaseHandler(object):
             function_info = eval(self.function_data['onget'])
             self.logger.info('There are functions to execute: ' +
                              str(self.function_data))
-            self._setup_docker_gateway()
-            function_resp = self.docker_gateway.execute_function(function_info)
+            docker_gateway = self._setup_docker_gateway()
+            function_resp = docker_gateway.execute_function(function_info)
             self._process_function_response_onget(function_resp)
 
         if 'Content-Length' not in self.response.headers:

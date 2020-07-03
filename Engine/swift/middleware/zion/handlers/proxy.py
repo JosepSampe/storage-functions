@@ -14,6 +14,7 @@ class ProxyHandler(BaseHandler):
         super(ProxyHandler, self).__init__(
             request, conf, app, logger, redis)
 
+        self.disaggregated_compute = self.conf["disaggregated_compute"]
         self.functions_container = self.conf["functions_container"]
         self.compute_nodes = self.conf["compute_nodes"]
         self.req.headers['function-enabled'] = True
@@ -22,7 +23,7 @@ class ProxyHandler(BaseHandler):
         return self.req.split_path(3, 4, rest_with_last=True)
 
     def _get_functions(self):
-        self.function_data = dict()
+        function_data = dict()
 
         self.function_list = None
         self.parent_function_list = None
@@ -44,17 +45,18 @@ class ProxyHandler(BaseHandler):
             if self.parent_function_list:
                 for key in self.parent_function_list:
                     if key in keys:
-                        self.function_data[key] = self.parent_function_list[key]
+                        function_data[key] = self.parent_function_list[key]
 
             if self.function_list:
                 for key in self.function_list:
                     if key in keys:
-                        self.function_data[key] = self.function_list[key]
+                        function_data[key] = self.function_list[key]
+
+        return function_data
 
     def handle_request(self):
         if hasattr(self, self.method) and self.is_valid_request:
             try:
-                self._get_functions()
                 handler = getattr(self, self.method)
                 getattr(handler, 'publicly_accessible')
             except AttributeError:
@@ -179,9 +181,8 @@ class ProxyHandler(BaseHandler):
         if 'X-Domain-Id' in self.req.headers:
             self.req.headers.pop('X-Domain-Id')
 
-        self.req.headers['function_data'] = self.function_data
-
     def _prepare_connection(self):
+        self._set_headers()
         compute_nodes = self.compute_nodes.split(',')
         compute_node = random.sample(compute_nodes, 1)
 
@@ -194,10 +195,8 @@ class ProxyHandler(BaseHandler):
 
         return conn, path
 
-    def _handle_get_trough_compute_node(self):
-        self._set_headers()
+    def _handle_get_through_compute_node(self, functions_data):
         conn, path = self._prepare_connection()
-
         conn.request(self.method, path, None, self.req.headers)
         resp = conn.getresponse()
 
@@ -215,15 +214,11 @@ class ProxyHandler(BaseHandler):
 
         return response
 
-    def _handle_put_trough_compute_node(self):
-        self._set_headers()
+    def _handle_put_through_compute_node(self):
         conn, path = self._prepare_connection()
         data_source = self.req.environ['wsgi.input']
-
         resp = conn.putrequest(path, data_source, self.req.headers)
-
-        response = Response(headers=resp.headers,
-                            request=self.req)
+        response = Response(headers=resp.headers, request=self.req)
 
         return response
 
@@ -232,10 +227,16 @@ class ProxyHandler(BaseHandler):
         """
         GET handler on Proxy
         """
-        if self.function_data:
+        functions_data = self._get_functions()
+
+        if functions_data:
             self.logger.info('There are functions to execute: ' +
-                             str(self.function_data))
-            response = self._handle_get_trough_compute_node()
+                             str(functions_data))
+            self.req.headers['function_data'] = functions_data
+            if self.disaggregated_compute:
+                response = self._handle_get_through_compute_node()
+            else:
+                response = self.req.get_response(self.app)
         else:
             response = self.req.get_response(self.app)
 
@@ -250,15 +251,22 @@ class ProxyHandler(BaseHandler):
         """
         PUT handler on Proxy
         """
+        functions_data = self._get_functions()
+
         if self.is_function_object_put:
             if not self._check_mandatory_metadata():
                 msg = ('Mandatory function metadata not provided: ' +
                        str(self.mandatory_function_metadata) + '\n')
                 raise HTTPUnauthorized(msg)
-        elif self.function_data:
+
+        elif functions_data:
             self.logger.info('There are functions to execute: ' +
-                             str(self.function_data))
-            return self._handle_put_trough_compute_node()
+                             str(functions_data))
+            self.req.headers['function_data'] = functions_data
+            if self.disaggregated_compute:
+                return self._handle_put_through_compute_node()
+            else:
+                return self.req.get_response(self.app)
 
         return self.req.get_response(self.app)
 
@@ -267,6 +275,7 @@ class ProxyHandler(BaseHandler):
         """
         POST handler on Proxy
         """
+
         if self.is_function_set:
             response = self._set_function()
         elif self.is_function_unset:
@@ -283,7 +292,8 @@ class ProxyHandler(BaseHandler):
         """
         response = self.req.get_response(self.app)
 
-        if self.conf['function_visibility']:
+        if self.conf['functions_visibility']:
+            self._get_functions()
             if self.function_list:
                 for trigger in self.function_list:
                     data = self.function_list[trigger]

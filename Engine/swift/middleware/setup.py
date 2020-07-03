@@ -8,9 +8,8 @@ setup(
     version='0.7.0',
     description='Serverless Storage Functions Framework for OpenStack Swift',
     author='Josep Sampé',
-    url='http://iostack.eu',
     packages=find_packages(),
-    requires=['swift>=2.25.0', ],
+    requires=['swift(>=2.25.0)', ],
     entry_points={'paste.filter_factory': paste_factory},
     classifiers=[
       'Development Status :: 5 - Production/Stable',

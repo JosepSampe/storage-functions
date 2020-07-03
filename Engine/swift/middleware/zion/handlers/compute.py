@@ -15,8 +15,11 @@ class ComputeHandler(BaseHandler):
     def _get_functions(self):
         self.function_data = eval(self.req.headers.pop('function_data'))
 
+    def is_valid_request(self):
+        return 'function_data' in self.req.headers
+
     def handle_request(self):
-        if hasattr(self, self.method):
+        if hasattr(self, self.method) and self.is_valid_request():
             try:
                 self._get_functions()
                 handler = getattr(self, self.method)

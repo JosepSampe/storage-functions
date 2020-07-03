@@ -62,9 +62,9 @@ def filter_factory(global_conf, **local_conf):
     # Common
     conf['execution_server'] = conf.get('execution_server')
     conf['functions_container'] = conf.get('functions_container', 'functions')
-    conf['function_visibility'] = conf.get('function_visibility', True)
+    conf['functions_visibility'] = conf.get('functions_visibility', True)
     # Paths
-    conf['main_dir'] = conf.get('main_dir', '/home/docker_device/zion')
+    conf['main_dir'] = conf.get('main_dir', '/opt/zion')
     # Worker paths
     conf['workers_dir'] = conf.get('workers_dir', 'workers')
     conf['java_runtime_dir'] = conf.get('java_runtime_dir', 'runtime/java')
@@ -82,7 +82,8 @@ def filter_factory(global_conf, **local_conf):
     conf['default_function_memory'] = int(conf.get('default_function_memory', 1024))
     conf['max_function_memory'] = int(conf.get('max_function_memory', 1024))
     # Compute Nodes
-    conf['compute_nodes'] = conf.get('compute_nodes', '192.168.2.30:8585')
+    conf['disaggregated_compute'] = conf.get('disaggregated_compute', True)
+    conf['compute_nodes'] = conf.get('compute_nodes', 'localhost:8585')
     conf['docker_pool_dir'] = conf.get('docker_pool_dir', 'docker_pool')
 
     def swift_functions(app):

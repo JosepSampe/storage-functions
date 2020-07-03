@@ -225,7 +225,7 @@ install_openstack_swift(){
     swift-ring-builder object.builder rebalance
     cd ~
     
-    chown -R swift:swift /etc/swift
+    chown -R $(logname):$(logname) /etc/swift
  
     sed -i '/pipeline = catch_errors gatekeeper healthcheck proxy-logging cache listing_formats container_sync bulk tempurl ratelimit tempauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server/c\# pipeline = catch_errors gatekeeper healthcheck proxy-logging cache listing_formats container_sync bulk tempurl ratelimit tempauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
     sed -i '/#pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server/c\pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
@@ -271,7 +271,7 @@ install_openstack_swift(){
 install_zion(){
     
     git clone https://github.com/JosepSampe/storage-functions
-    pip3 install -U storage-functions/Engine/swift
+    pip3 install -U storage-functions/Engine/swift/middleware
     
     cat <<-EOF >> /etc/swift/proxy-server.conf
     
@@ -279,6 +279,7 @@ install_zion(){
     use = egg:swift-zion#zion_handler
     execution_server = proxy
     redis_host = $IP_ADDRESS
+    disaggregated_compute=False
     EOF
     
     cat <<-EOF >> /etc/swift/object-server.conf
@@ -298,19 +299,21 @@ install_zion(){
     
 
     mkdir -p /opt/zion/runtime
-    cp storage-functions/Engine/runtime/java/bin/ZionDockerDaemon.jar /opt/zion/runtime
-    cp micro-controllers/Engine/runtime/java/lib/* /opt/zion/runtime
-
-    cp micro-controllers/Engine/runtime/java/start_daemon.sh /opt/zion/runtime
-    cp micro-controllers/Engine/runtime/java/logback.xml /opt/zion/runtime
-    cp micro-controllers/Engine/runtime/worker.config /opt/zion/runtime
-    
-    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade /opt/zion/runtime
-    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime
-    cp micro-controllers/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime
+    cp storage-functions/Engine/compute/runtime/java/bin/ZionDockerDaemon-1.0.jar /opt/zion/runtime
+    cp storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime
+    cp storage-functions/Engine/compute/runtime/java/start_daemon.sh /opt/zion/runtime
+    cp storage-functions/Engine/compute/runtime/java/logback.xml /opt/zion/runtime
+ 
+    cp storage-functions/Engine/compute/runtime/worker.config /opt/zion/runtime
+ 
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime
+    cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime
     
     sed -i "/host_ip=127.0.0.1/c\swift_ip=$IP_ADDRESS" /opt/zion/runtime/worker.config
     #sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/zion/runtime/worker.config
+    
+    chown -R $(logname):$(logname) /opt/zion
     
     swift-init main restart
 }
@@ -318,25 +321,23 @@ install_zion(){
 
 ##### Initialize tenant #####
 initialize_tenant(){
-    # Initialize Vertigo test tenant
-    . vertigo-openrc
+    # Initialize Zion test tenant
+    . zion-openrc
     PROJECT_ID=$(openstack token issue | grep -w project_id | awk '{print $4}')
-    docker tag ubuntu_16.04_jre8_storlets ${PROJECT_ID:0:13}
+    docker pull adoptopenjdk/openjdk11:x86_64-ubuntu-jdk11u-nightly
 
-    swift post storlet
-    swift post microcontroller
-    swift post dependency
+    swift post functions
 
-    swift post -H "X-account-meta-storlet-enabled:True"
+    #swift post -H "X-account-meta-functions-enabled:True"
     
-    mkdir -p /home/docker_device/vertigo/scopes/${PROJECT_ID:0:13}/
+    mkdir -p /opt/zion/scopes/${PROJECT_ID:0:13}/
     cp /opt/vertigo/* /home/docker_device/vertigo/scopes/${PROJECT_ID:0:13}/
     chown -R swift:swift /home/docker_device/vertigo/scopes/
     
-    gpasswd -a "$(whoami)" docker
+    gpasswd -a "$(logname)" docker
     usermod -aG docker swift
     
-    cat <<-EOF >> vertigo-openrc
+    cat <<-EOF >> zion-openrc
     export STORAGE_URL=http://$IP_ADDRESS:8080/v1/AUTH_$PROJECT_ID
     export TOKEN=\$(openstack token issue | grep -w id | awk '{print \$4}')
     EOF

@@ -13,13 +13,13 @@ class Function:
     Function main class.
     """
 
-    def __init__(self, be, scope, function_obj_name):
-        self.be = be
-        self.req = be.req
-        self.conf = be.conf
+    def __init__(self, swift, scope, function_obj_name):
+        self.swift = swift
+        self.req = swift.req
+        self.conf = swift.conf
         self.scope = scope
         self.function_obj_name = function_obj_name
-        self.logger = be.logger
+        self.logger = swift.logger
         self.function_name = function_obj_name.replace('.tar.gz', '')
         self.functions_container = self.conf['functions_container']
         # Dirs
@@ -84,12 +84,12 @@ class Function:
         Updates the local cache of functions.
         """
         f_container = self.functions_container
-        new_env = dict(self.be.req.environ)
-        swift_path = os.path.join('/', self.be.api_version, self.be.account,
+        new_env = dict(self.swift.req.environ)
+        swift_path = os.path.join('/', self.swift.api_version, self.swift.account,
                                   f_container, self.function_obj_name)
         sub_req = make_subrequest(new_env, 'GET', swift_path,
                                   swift_source='function_middleware')
-        resp = sub_req.get_response(self.be.app)
+        resp = sub_req.get_response(self.swift.app)
 
         with open(self.cached_function_obj, 'w') as fn:
             fn.write(resp.body)
