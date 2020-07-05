@@ -4,7 +4,7 @@ from zion.gateways.docker.datagram import Datagram
 # from daemonize import Daemonize
 from docker.errors import NotFound
 from subprocess import Popen
-from threading import Thread
+import threading
 import shutil
 import logging
 import operator
@@ -67,20 +67,20 @@ def init_logger():
 logger = init_logger()
 
 
-class FuncThread(Thread):
+class FuncThread(threading.Thread):
     def __init__(self, target, *args):
+        threading.Thread.__init__(self)
         self._target = target
         self._args = args
-        Thread.__init__(self)
 
     def run(self):
         self._target(*self._args)
 
 
-class Container(Thread):
+class Container(threading.Thread):
     def __init__(self, cid):
         # Greenlet.__init__(self)
-        Thread.__init__(self)
+        threading.Thread.__init__(self)
         self.id = str(cid)
         self.name = "zion_"+str(cid)
         self.stopped = False
@@ -90,8 +90,8 @@ class Container(Thread):
         self.channel_dir = self.docker_dir+'/channel'
         self.function_dir = self.docker_dir+'/function'
         self.worker_dir = None
-        self.r = redis.Redis(connection_pool=REDIS_CONN_POOL)
-        self.c = docker.from_env()
+        self.redis = redis.Redis(connection_pool=REDIS_CONN_POOL)
+        self.docker = docker.from_env()
         self.cpu_usage = 0
         self.function = None
         self.monitoring_info = None
@@ -111,19 +111,21 @@ class Container(Thread):
 
     def _start_container(self):
         logger.info("Starting container: "+self.name)
-        command = '/opt/zion/runtime/java/start_daemon.sh {}'.format(self.id)
+        command = '/bin/bash /opt/zion/runtime/java/start_daemon.sh {}'.format(self.id)
         vols = {'/dev/log': {'bind': '/dev/log', 'mode': 'rw'},
                 self.docker_dir: {'bind': '/opt/zion', 'mode': 'rw'}}
-        self.container = self.c.containers.run(DOCKER_IMAGE, command, cpuset_cpus=self.id,
-                                               name=self.name, volumes=vols, detach=True)
-        self.r.rpush("available_dockers", self.name)
+
+        self.container = self.docker.containers.run(DOCKER_IMAGE, command, cpuset_cpus=self.id,
+                                                    name=self.name, volumes=vols, detach=True)
+
+        self.redis.rpush("available_dockers", self.name)
 
     def run(self):
         self._create_directory_structure()
         self._start_container()
-        print('----')
+        logger.info("Container {} started. Collecting logs".format(self.name))
         try:
-            for stats in self.c.api.stats(self.name, decode=True):
+            for stats in self.docker.api.stats(self.name, decode=True):
                 if not self.stopped:
                     try:
                         cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \
@@ -137,8 +139,10 @@ class Container(Thread):
                     except:
                         pass
             msg = '404 Client Error: Not Found ("No such container: '+self.name+'")'
+            logger.info(msg)
             self.stop(msg)
         except NotFound as e:
+            logger.info(e)
             self.stop(e)
 
     def load_function(self, function, worker_dir):
@@ -192,7 +196,7 @@ class Container(Thread):
     def stop(self, message):
         if not self.stopped:
             self.stopped = True
-            self.r.zrem(self.function, self.name)
+            self.redis.zrem(self.function, self.name)
             try:
                 self.container.remove(force=True)
                 if self.worker_dir and os.path.exists(self.worker_dir):
@@ -341,30 +345,31 @@ def monitoring(containers):
     FuncThread(monitoring_info_auditor, containers, monitoring_info).start()
 
     while True:
-        # Check for new workers
-        functions = r.keys('workers*')
-        for function in functions:
-            workers = r.zrange(function, 0, -1)
-            if function not in monitoring_info:
-                monitoring_info[function] = dict()
-            for worker in workers:
-                if worker not in monitoring_info[function]:
-                    logger.info("Monitoring "+worker)
-                    c_id = int(worker.replace('zion_', ''))
-                    container = containers[c_id]
-                    # Start monitoring of container
-                    container.monitoring_info = monitoring_info
-                    container.function = function
-        time.sleep(1)
+        try:
+            # Check for new workers
+            functions = r.keys('workers*')
+            for function in functions:
+                workers = r.zrange(function, 0, -1)
+                if function not in monitoring_info:
+                    monitoring_info[function] = dict()
+                for worker in workers:
+                    if worker not in monitoring_info[function]:
+                        logger.info("Monitoring "+worker)
+                        c_id = int(worker.replace('zion_', ''))
+                        container = containers[c_id]
+                        # Start monitoring of container
+                        container.monitoring_info = monitoring_info
+                        container.function = function
+            time.sleep(1)
+        except:
+            break
 
 
 def stop_containers():
-    logger.info('Configuring docker from env')
     c = docker.from_env()
-    logger.info('Creating redis connection')
     r = redis.Redis(connection_pool=REDIS_CONN_POOL)
 
-    logger.info('Going to kill all strated conntainers...')
+    logger.info('Going to kill all started containers...')
     for container in c.containers.list(all=True):
         if container.name.startswith("zion"):
             logger.info("Killing container: "+container.name)
@@ -404,10 +409,13 @@ def main():
         # Start base containers
         start_containers(containers)
         # Start monitoring
-        monitor = FuncThread(monitoring, containers)
-        monitor.start()
-        monitor.join()
-    except:
+        monitoring(containers)
+        # monitor = FuncThread(monitoring, containers)
+        # monitor.start()
+        # monitor.join()
+    except Exception as e:
+        logger.info(e)
+    finally:
         stop_containers()
         exit()
 

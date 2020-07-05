@@ -302,18 +302,18 @@ install_zion(){
     
 
     mkdir -p /opt/zion/runtime/java
+    
     cp storage-functions/Engine/compute/runtime/java/bin/ZionDockerDaemon-1.0.jar /opt/zion/runtime/java
-    cp storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime/java
     cp storage-functions/Engine/compute/runtime/java/start_daemon.sh /opt/zion/runtime/java
     cp storage-functions/Engine/compute/runtime/java/logback.xml /opt/zion/runtime/java
- 
     cp storage-functions/Engine/compute/runtime/worker.config /opt/zion/runtime/java
  
-    cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime/java
-    cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime/java
-    cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime/java/lib
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime/java/lib
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime/java/lib
+    cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime/java/lib
     
-    sed -i "/host_ip=127.0.0.1/c\swift_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
+    sed -i "/host_ip=127.0.0.1/c\host_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
     #sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
     
     

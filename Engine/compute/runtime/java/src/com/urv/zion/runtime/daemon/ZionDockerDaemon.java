@@ -25,7 +25,7 @@ public class ZionDockerDaemon {
 	private static Function function_ = null;
 	private static FileOutputStream functionLog_;
 	
-	private static String configFile = "/opt/zion/config/worker.config";
+	private static String configFile = "/opt/zion/runtime/java/worker.config";
 	private static Properties prop_;
 	private static String host;
 	private static int redisPort;
