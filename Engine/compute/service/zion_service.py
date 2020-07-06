@@ -139,10 +139,8 @@ class Container(threading.Thread):
                     except:
                         pass
             msg = '404 Client Error: Not Found ("No such container: '+self.name+'")'
-            logger.info(msg)
             self.stop(msg)
         except NotFound as e:
-            logger.info(e)
             self.stop(e)
 
     def load_function(self, function, worker_dir):
@@ -196,7 +194,10 @@ class Container(threading.Thread):
     def stop(self, message):
         if not self.stopped:
             self.stopped = True
-            self.redis.zrem(self.function, self.name)
+            try:
+                self.redis.zrem(self.function, self.name)
+            except:
+                pass
             try:
                 self.container.remove(force=True)
                 if self.worker_dir and os.path.exists(self.worker_dir):

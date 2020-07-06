@@ -3,7 +3,7 @@ import os
 
 
 def put_function(url, token, function_path, fuction_name, main):
-    f = open('%s/%s' % (function_path, fuction_name), 'r')
+    f = open('%s/%s' % (function_path, fuction_name), 'rb')
     content_length = os.stat(function_path+'/'+fuction_name).st_size
     response = dict()
 
@@ -68,6 +68,6 @@ path = '../Function Samples/java'
 # put_function(url, token, path+'/ContentBasedAccessControl/bin', 'cbac.tar.gz', 'com.urv.zion.function.cbac.Handler')
 
 # None
-# put_function(url, token, path+'/None/bin', 'none.tar.gz', 'com.urv.zion.function.none.Handler')
+put_function(url, token, path+'/None/bin', 'none.tar.gz', 'com.urv.zion.function.none.Handler')
 
-print url, token
+print(url, token)
