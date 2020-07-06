@@ -24,12 +24,16 @@ def read_metadata(fd, md_key=None):
 
     metadata = ''
     key = 0
+    print('999999999999999999999')
     try:
         while True:
             metadata += xattr.getxattr(fd, '%s%s' % (meta_key,
                                                      (key or '')))
+            print(metadata)
             key += 1
     except (IOError, OSError) as e:
+        print(e)
+        print('888888888888888')
         if metadata == '':
             return False
         for err in 'ENOTSUP', 'EOPNOTSUPP':
@@ -40,6 +44,8 @@ def read_metadata(fd, md_key=None):
                 raise DiskFileXattrNotSupported(e)
         if e.errno == errno.ENOENT:
             raise DiskFileNotExist()
+    print(metadata)
+    print('///////')
     return pickle.loads(metadata)
 
 
@@ -83,7 +89,9 @@ def get_object_metadata(data_file):
     :returns: dictionary with all swift metadata
     """
     fd = open_data_file(data_file)
+    print('******')
     metadata = read_metadata(fd, SWIFT_METADATA_KEY)
+    print('-++*-++-++-')
     close_data_file(fd)
 
     return metadata

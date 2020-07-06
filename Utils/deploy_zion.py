@@ -17,8 +17,8 @@ os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/ser
 # os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/runtime/java/lib', user, host, 'josep/zion/runtime/java/'))
 # os.system('sshpass -p %s scp -r %s %s@%s:%s' % (password, '../Engine/compute/runtime/java/logback.xml', user, host, 'josep/zion/runtime/java/'))
 
-print "--> FILES UPLOADED"
+print("--> FILES UPLOADED")
 
 os.system('sshpass -p %s ssh %s@%s "%s" > /dev/null' % (password, user, host, 'sudo swift-init main restart'))
 
-print "--> FINISH"
+print("--> FINISH")

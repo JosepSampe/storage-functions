@@ -50,17 +50,17 @@ class BaseHandler(object):
         self.method = self.req.method
         self.execution_server = conf["execution_server"]
         self.functions_container = conf.get('functions_container')
-        self.available_set_headers = ['X-Function-Onput',
-                                      'X-Function-Onget',
-                                      'X-Function-Onget-Before',
-                                      'X-Function-Onget-Manifest',
-                                      'X-Function-Ondelete']
-        self.available_unset_headers = ['X-Function-Onput-Delete',
-                                        'X-Function-Onget-Delete',
-                                        'X-Function-Onget-Before-Delete',
-                                        'X-Function-Onget-Manifest-Delete',
-                                        'X-Function-Ondelete-Delete',
-                                        'X-Function-Delete']
+        self.available_set_headers = ['X-Functions-Onput',
+                                      'X-Functions-Onget',
+                                      'X-Functions-Onget-Before',
+                                      'X-Functions-Onget-Manifest',
+                                      'X-Functions-Ondelete']
+        self.available_unset_headers = ['X-Functions-Onput-Delete',
+                                        'X-Functions-Onget-Delete',
+                                        'X-Functions-Onget-Before-Delete',
+                                        'X-Functions-Onget-Manifest-Delete',
+                                        'X-Functions-Ondelete-Delete',
+                                        'X-Functions-Delete']
         self.function_methods = ['GET', 'PUT', 'DELETE']
         self.get_keys = ['onget', 'onget-before', 'onget-manifest']
         self.put_keys = ['onput']
@@ -306,9 +306,9 @@ class BaseHandler(object):
         in PUT flow
         """
         if functions_data:
-            function_info = eval(functions_data['onput'])
+            function_info = functions_data['onput']
             self.logger.info('There are functions to execute: ' +
-                             str(self.function_data))
+                             str(functions_data))
             docker_gateway = self._setup_docker_gateway()
             function_resp = docker_gateway.execute_function(function_info)
 
@@ -322,9 +322,9 @@ class BaseHandler(object):
         in GET flow
         """
         if functions_data:
-            function_info = eval(functions_data['onget'])
+            function_info = functions_data['onget']
             self.logger.info('There are functions to execute: ' +
-                             str(self.function_data))
+                             str(functions_data))
             docker_gateway = self._setup_docker_gateway()
             function_resp = docker_gateway.execute_function(function_info)
             self._process_function_response_onget(function_resp)

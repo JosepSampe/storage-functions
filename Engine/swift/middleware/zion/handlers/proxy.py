@@ -5,6 +5,7 @@ from swift.common.utils import public
 from swift.common.wsgi import make_subrequest
 from swiftclient.client import http_connection, quote
 import os
+import pickle
 import random
 
 
@@ -25,14 +26,23 @@ class ProxyHandler(BaseHandler):
     def _get_functions(self):
         functions_data = dict()
 
-        self.function_list = None
-        self.parent_function_list = None
+        self.functions_list = {}
+        self.parent_functions_list = {}
 
+        functions_list = {}
         if self.obj:
             key = self.req.path
-            self.function_list = self.redis.hgetall(key)
+            functions_list = self.redis.hgetall(key)
         key = os.path.join('/', self.api_version, self.account, self.container)
-        self.parent_function_list = self.redis.hgetall(key)
+        parent_functions_list = self.redis.hgetall(key)
+
+        if functions_list:
+            for key in functions_list:
+                self.functions_list[key.decode()] = pickle.loads(functions_list[key])
+
+        if parent_functions_list:
+            for key in parent_functions_list:
+                self.parent_functions_list[key.decode()] = pickle.loads(parent_functions_list[key])
 
         if self.method in self.function_methods:
             if self.method == 'GET':
@@ -42,15 +52,15 @@ class ProxyHandler(BaseHandler):
             elif self.method == 'DELETE':
                 keys = self.del_keys
 
-            if self.parent_function_list:
-                for key in self.parent_function_list:
+            if self.parent_functions_list:
+                for key in self.parent_functions_list:
                     if key in keys:
-                        functions_data[key] = self.parent_function_list[key]
+                        functions_data[key] = self.parent_functions_list[key]
 
-            if self.function_list:
-                for key in self.function_list:
+            if self.functions_list:
+                for key in self.functions_list:
                     if key in keys:
-                        functions_data[key] = self.function_list[key]
+                        functions_data[key] = self.functions_list[key]
 
         return functions_data
 
@@ -107,7 +117,7 @@ class ProxyHandler(BaseHandler):
                                    'function at a time.\n')
 
         trigger = header[0].lower().split('-', 2)[2]
-        function = self.req.headers[header[0]]+".tar.gz"
+        function = self.req.headers[header[0]]
 
         if self.req.body:
             params = self.req.body
@@ -126,9 +136,9 @@ class ProxyHandler(BaseHandler):
         key = self.req.path
 
         self._verify_access(self.container, self.obj)
-        self.redis.hset(key, trigger, function_data)
+        self.redis.hset(key, trigger, pickle.dumps(function_data))
 
-        msg = 'Function "' + function.replace('.tar.gz', '') + '" correctly ' \
+        msg = 'Function "' + function + '" correctly ' \
               'assigned to the "' + trigger + '" trigger.\n'
         self.logger.info(msg)
         return Response(body=msg, headers={'etag': ''}, request=self.req)
@@ -157,10 +167,10 @@ class ProxyHandler(BaseHandler):
             del function_data[trigger]
             if not function_data:
                 self.redis.delete(key)
-            msg = 'Function "' + function.replace('.tar.gz', '') + '" correctly '\
+            msg = 'Function "' + function + '" correctly '\
                   ' removed from the "' + trigger + '" trigger.\n'
         else:
-            msg = 'Error: Function "' + function.replace('.tar.gz', '') + '" not'\
+            msg = 'Error: Function "' + function + '" not'\
                   ' assigned to the "' + trigger + '" trigger.\n'
         self.logger.info(msg)
 
@@ -294,14 +304,14 @@ class ProxyHandler(BaseHandler):
 
         if self.conf['functions_visibility']:
             self._get_functions()
-            if self.function_list:
-                for trigger in self.function_list:
-                    data = self.function_list[trigger]
-                    response.headers['Function-'+trigger] = data
+            if self.functions_list:
+                for trigger in self.functions_list:
+                    data = self.functions_list[trigger]
+                    response.headers['Functions-'+trigger] = data
 
-            if self.parent_function_list:
-                for trigger in self.parent_function_list:
-                    data = self.parent_function_list[trigger]
-                    response.headers['Function-'+trigger+'-Container'] = data
+            if self.parent_functions_list:
+                for trigger in self.parent_functions_list:
+                    data = self.parent_functions_list[trigger]
+                    response.headers['Functions-'+trigger+'-Container'] = data
 
         return response

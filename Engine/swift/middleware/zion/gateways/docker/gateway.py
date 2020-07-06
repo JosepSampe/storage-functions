@@ -6,7 +6,7 @@ import time
 
 class DockerGateway:
 
-    def swift(self, swift):
+    def __init__(self, swift):
         self.swift = swift
         self.req = swift.req
         self.conf = swift.conf
@@ -50,9 +50,10 @@ class DockerGateway:
         object_metadata = self._get_object_metadata()
         request_headers = dict(self.req.headers)
 
-        f_name = function_info.keys()[0]
+        f_name = list(function_info.keys())[0]
+
         if function_info[f_name]:
-            function_parameters = eval(function_info[f_name])
+            function_parameters = function_info[f_name]
         else:
             function_parameters = dict()
 
@@ -60,13 +61,13 @@ class DockerGateway:
         function = Function(self.swift, self.scope, f_name)
         time2 = time.time()
         fc = time2-time1
-        # print '------ FUNCTION took %0.6f s' % ((time2-time1))
+        print('------ FUNCTION took %0.6f s' % ((time2-time1)))
 
         time1 = time.time()
         worker = Worker(self.swift, self.scope, self.redis, function)
         time2 = time.time()
         wkr = time2-time1
-        # print '------ WORKER took %0.6f s' % ((time2-time1))
+        print('------ WORKER took %0.6f s' % ((time2-time1)))
 
         time1 = time.time()
         protocol = Protocol(worker, object_stream, object_metadata,
@@ -74,7 +75,7 @@ class DockerGateway:
         resp = protocol.comunicate()
         time2 = time.time()
         ptc = time2-time1
-        # print '----- PROTOCOL took %0.6f s' % ((time2-time1))
+        print('----- PROTOCOL took %0.6f s' % ((time2-time1)))
 
         total = fc + wkr + ptc
 

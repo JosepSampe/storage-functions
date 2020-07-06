@@ -195,6 +195,9 @@ install_openstack_swift(){
     apt install swift swift-proxy swift-account swift-container swift-object -y
     apt install python3-swiftclient python3-keystoneclient python3-keystonemiddleware memcached -y
     apt install xfsprogs rsync -y
+        
+    gpasswd -a "$(logname)" swift
+    usermod -aG swift "$(logname)"
     
     mkdir /etc/swift
 
@@ -227,7 +230,9 @@ install_openstack_swift(){
     swift-ring-builder object.builder rebalance
     cd ~
     
-    chown -R $(logname):$(logname) /etc/swift
+    chown -R swift:swift /etc/swift
+    find /etc/swift -type d -exec chmod 775 {} \;
+    find /etc/swift -type f -exec chmod 664 {} \;
  
     sed -i '/pipeline = catch_errors gatekeeper healthcheck proxy-logging cache listing_formats container_sync bulk tempurl ratelimit tempauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server/c\# pipeline = catch_errors gatekeeper healthcheck proxy-logging cache listing_formats container_sync bulk tempurl ratelimit tempauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
     sed -i '/#pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server/c\pipeline = catch_errors gatekeeper healthcheck proxy-logging cache container_sync bulk tempurl ratelimit authtoken keystoneauth copy container-quotas account-quotas slo dlo versioned_writes symlink proxy-logging proxy-server' /etc/swift/proxy-server.conf
@@ -263,6 +268,7 @@ install_openstack_swift(){
     systemctl stop swift-account-auditor swift-account-reaper swift-account-replicator swift-container-auditor swift-container-replicator swift-container-sync swift-container-updater swift-object-auditor swift-object-reconstructor swift-object-replicator swift-object-updater
     systemctl disable swift-account-auditor swift-account-reaper swift-account-replicator swift-container-auditor swift-container-replicator swift-container-sync swift-container-updater swift-object-auditor swift-object-reconstructor swift-object-replicator swift-object-updater
     swift-init all stop
+ 
     #usermod -u 1010 swift
     #groupmod -g 1010 swift
 
@@ -301,14 +307,14 @@ install_zion(){
     sed -i '/\[pipeline:main\]/a pipeline = healthcheck recon storage_functions object-server' /etc/swift/object-server.conf
     
 
-    mkdir -p /opt/zion/runtime/java
+    mkdir -p /opt/zion/runtime/java/lib
     
     cp storage-functions/Engine/compute/runtime/java/bin/ZionDockerDaemon-1.0.jar /opt/zion/runtime/java
     cp storage-functions/Engine/compute/runtime/java/start_daemon.sh /opt/zion/runtime/java
     cp storage-functions/Engine/compute/runtime/java/logback.xml /opt/zion/runtime/java
     cp storage-functions/Engine/compute/runtime/worker.config /opt/zion/runtime/java
  
-    cp storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime/java/lib
+    cp -R storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime/java/lib
     cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime/java/lib
     cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime/java/lib
     cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime/java/lib
@@ -320,7 +326,11 @@ install_zion(){
     mkdir -p /opt/zion/service
     cp storage-functions/Engine/compute/service/zion_service.py /opt/zion/service
     
-    chown -R $(logname):$(logname) /opt/zion
+    chown -R swift:swift /opt/zion
+    
+    find /opt/zion -type d -exec chmod 775 {} \;
+    find /opt/zion -type f -exec chmod 664 {} \;
+    chmod 777 /opt/zion/runtime/java/start_daemon.sh
     
     swift-init main restart
 }

@@ -83,13 +83,18 @@ class Function:
         """
         Updates the local cache of functions.
         """
+        self.logger.info('Updating local cache from swift')
         f_container = self.functions_container
         new_env = dict(self.swift.req.environ)
         swift_path = os.path.join('/', self.swift.api_version, self.swift.account,
                                   f_container, self.function_obj_name)
+        print(swift_path)
         sub_req = make_subrequest(new_env, 'GET', swift_path,
                                   swift_source='function_middleware')
         resp = sub_req.get_response(self.swift.app)
+
+        if resp.status != 202:
+            raise FileNotFoundError
 
         with open(self.cached_function_obj, 'w') as fn:
             fn.write(resp.body)
@@ -103,6 +108,7 @@ class Function:
         """
         Untars the function to the bin directory.
         """
+        self.logger.info('Extracting .tar.gz function files')
         tar = tarfile.open(self.cached_function_obj, "r:gz")
         tar.extractall(path=self.function_bin_path)
         tar.close()
@@ -111,7 +117,9 @@ class Function:
         """
         Loads the memory needed and the timeout of the function.
         """
+        self.logger.info('Loading function information')
         function_metadata = get_object_metadata(self.cached_function_obj)
+        print('--------------', function_metadata)
 
         if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in \
            function_metadata or MAIN_HEADER not in function_metadata:
@@ -120,6 +128,7 @@ class Function:
             self.memory = int(function_metadata[MEMORY_HEADER])
             self.timeout = int(function_metadata[TIMEOUT_HEADER])
             self.main_class = function_metadata[MAIN_HEADER]
+        print('++++++')
 
     def open_log(self):
         """
