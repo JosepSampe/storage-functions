@@ -21,9 +21,9 @@ REDIS_CONN_POOL = redis.ConnectionPool(host='localhost', port=6379, db=10)
 # CPU
 TOTAL_CPUS = psutil.cpu_count()
 HIGH_CPU_THRESHOLD = 90
-LOW_CPU_THRESHOLD = 0.10
+LOW_CPU_THRESHOLD = 0.15
 WORKERS = TOTAL_CPUS
-WORKER_TIMEOUT = 30  # seconds
+WORKER_TIMEOUT = 5  # seconds
 TIMEOUT_TO_GROW_UP = 5  # seconds
 
 # DIRS
@@ -104,10 +104,13 @@ class Container(threading.Thread):
         if not os.path.exists(self.runtime_dir):
             os.makedirs(self.runtime_dir)
             os.system('cp -p -R {} {}'.format(RUNTIME_DIR, self.runtime_dir))
+            os.chown(self.runtime_dir, swift_uid, swift_gid)
 
         if not os.path.exists(self.channel_dir):
             os.makedirs(self.channel_dir)
-            # os.chown(self.channel_dir, swift_uid, swift_gid)
+            os.chown(self.channel_dir, swift_uid, swift_gid)
+
+        os.chown(self.docker_dir, swift_uid, swift_gid)
 
     def _start_container(self):
         logger.info("Starting container: "+self.name)
@@ -224,13 +227,13 @@ def start_worker(containers, function):
         p.wait()
         container = containers[c_id]
         container.load_function(function, worker_dir)
-        r.zadd(function, docker_id, 0)
+        r.zadd(function, {docker_id: 0})
 
 
 def worker_timeout_checker(containers, workers_to_kill):
 
     while True:
-        for function in workers_to_kill.keys():
+        for function in list(workers_to_kill.keys()):
             try:
                 workers = workers_to_kill[function]
                 for worker in workers.keys():
@@ -265,9 +268,9 @@ def monitoring_info_auditor(containers, monitoring_info):
                 continue
 
             logger.info("+++++++++++++++++++++++++++++++")
-            logger.info(monitoring_info)
+            logger.info("MI: " + str(monitoring_info))
 
-            for function in monitoring_info.keys():
+            for function in list(monitoring_info.keys()):
                 if function not in workers_to_kill:
                     workers_to_kill[function] = dict()
                 if function not in workers_to_grow:
@@ -290,10 +293,10 @@ def monitoring_info_auditor(containers, monitoring_info):
                         logger.info("Reusing worker: "+docker)
                         function_cpu_usage += worker_cpu_usage
                         del workers_to_kill[function][docker]
-                        r.zadd(function, docker, 0)
+                        r.zadd(function, {docker: 0})
                         active_function_workers += 1
 
-                logger.info(workers_to_kill)
+                logger.info("WTK:" + str(workers_to_kill))
                 logger.info("Active: "+str(active_function_workers)+" - To kill: "+str(len(workers_to_kill[function])))
                 scale_up = active_function_workers*HIGH_CPU_THRESHOLD
                 scale_down = (active_function_workers-1)*HIGH_CPU_THRESHOLD
@@ -312,7 +315,7 @@ def monitoring_info_auditor(containers, monitoring_info):
                             docker = random.sample(workers_to_kill[function], 1)[0]
                             logger.info("Reusing worker: "+docker)
                             del workers_to_kill[function][docker]
-                            r.zadd(function, docker, 0)
+                            r.zadd(function, {docker: 0})
                         else:
                             start_worker(containers, function)
                         continue
@@ -350,10 +353,12 @@ def monitoring(containers):
             # Check for new workers
             functions = r.keys('workers*')
             for function in functions:
+                function = function.decode()
                 workers = r.zrange(function, 0, -1)
                 if function not in monitoring_info:
                     monitoring_info[function] = dict()
                 for worker in workers:
+                    worker = worker.decode()
                     if worker not in monitoring_info[function]:
                         logger.info("Monitoring "+worker)
                         c_id = int(worker.replace('zion_', ''))
@@ -362,7 +367,8 @@ def monitoring(containers):
                         container.monitoring_info = monitoring_info
                         container.function = function
             time.sleep(1)
-        except:
+        except Exception as e:
+            print(e)
             break
 
 
@@ -391,10 +397,10 @@ def start_containers(containers):
     logger.info('Starting containers in pool...')
     if not os.path.exists(WORKERS_DIR):
         os.makedirs(WORKERS_DIR)
-    #os.chown(WORKERS_DIR, swift_uid, swift_gid)
+        os.chown(WORKERS_DIR, swift_uid, swift_gid)
     if not os.path.exists(POOL_DIR):
         os.makedirs(POOL_DIR)
-    #os.chown(POOL_DIR, swift_uid, swift_gid)
+        os.chown(POOL_DIR, swift_uid, swift_gid)
     for cid in range(WORKERS):
         container = Container(cid)
         containers[cid] = container

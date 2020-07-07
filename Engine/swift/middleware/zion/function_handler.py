@@ -2,6 +2,7 @@ from swift.common.swob import wsgify
 from swift.common.utils import get_logger
 from zion.handlers import ProxyHandler
 from zion.handlers import ComputeHandler
+from zion.handlers import ObjectHandler
 from zion.handlers.base import NotFunctionRequest
 from distutils.util import strtobool
 import redis
@@ -37,6 +38,8 @@ class FunctionHandlerMiddleware(object):
             return ProxyHandler
         elif exec_server == 'compute':
             return ComputeHandler
+        elif exec_server == 'object':
+            return ObjectHandler
         else:
             raise ValueError('configuration error: execution_server must be '
                              'either proxy, object or compute but is %s' % exec_server)

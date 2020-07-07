@@ -1,5 +1,6 @@
-from swift.common.exceptions import DiskFileXattrNotSupported, \
-    DiskFileNoSpace, DiskFileNotExist
+from swift.common.exceptions import DiskFileXattrNotSupported
+from swift.common.exceptions import DiskFileNoSpace, DiskFileNotExist
+from swift.common.internal_client import InternalClient
 from eventlet import Timeout
 import xattr
 import select
@@ -10,6 +11,7 @@ import os
 
 PICKLE_PROTOCOL = 2
 SWIFT_METADATA_KEY = 'user.swift.metadata'
+LOCAL_PROXY = '/etc/swift/zion-proxy-server.conf'
 
 
 def read_metadata(fd, md_key=None):
@@ -22,7 +24,7 @@ def read_metadata(fd, md_key=None):
     """
     meta_key = SWIFT_METADATA_KEY
 
-    metadata = ''
+    metadata = b''
     key = 0
     try:
         while True:
@@ -134,6 +136,22 @@ def get_filename(fd):
 
     # fd is a filename
     return fd
+
+
+def make_swift_request(op, account, container=None, obj=None):
+    """
+    Makes a swift request via a local proxy (cost expensive)
+    :param op: opertation (PUT, GET, DELETE, HEAD)
+    :param account: swift account
+    :param container: swift container
+    :param obj: swift object
+    :returns: swift.common.swob.Response instance
+    """
+    iclient = InternalClient(LOCAL_PROXY, 'Zion', 1)
+    path = iclient.make_path(account, container, obj)
+    resp = iclient.make_request(op, path, {'PATH_INFO': path}, [200])
+
+    return resp
 
 
 class DataFdIter(object):

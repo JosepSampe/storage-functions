@@ -207,6 +207,10 @@ install_openstack_swift(){
     curl -o /etc/swift/object-server.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/object-server.conf-sample
     curl -o /etc/swift/swift.conf https://opendev.org/openstack/swift/raw/branch/stable/$OPENSTACK_RELEASE/etc/swift.conf-sample
     
+    cp /etc/swift/proxy-server.conf /etc/swift/zion-proxy-server.conf
+    sed -i '/^pipeline =/ d' /etc/swift/zion-proxy-server.conf
+    sed -i '/\[pipeline:main\]/a pipeline = proxy-logging cache slo proxy-logging proxy-server' /etc/swift/zion-proxy-server.conf
+    
     mkdir -p /srv/node/sda1
     mkdir -p /var/cache/swift
     chown -R root:swift /var/cache/swift
@@ -288,15 +292,16 @@ install_zion(){
     use = egg:swift-zion#zion_handler
     execution_server = proxy
     redis_host = $IP_ADDRESS
-    disaggregated_compute=False
+    disaggregated_compute = false
     EOF
     
     cat <<-EOF >> /etc/swift/object-server.conf
     
     [filter:storage_functions]
     use = egg:swift-zion#zion_handler
-    execution_server = compute
+    execution_server = object
     redis_host = $IP_ADDRESS
+    disaggregated_compute = false
     EOF
     
 

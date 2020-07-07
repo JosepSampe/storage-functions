@@ -1,5 +1,5 @@
 from swift.common.wsgi import make_subrequest
-from zion.common.utils import set_object_metadata, get_object_metadata
+from zion.common.utils import set_object_metadata, get_object_metadata, make_swift_request
 import tarfile
 import os
 
@@ -13,15 +13,18 @@ class Function:
     Function main class.
     """
 
-    def __init__(self, swift, scope, function_obj_name):
-        self.swift = swift
-        self.req = swift.req
-        self.conf = swift.conf
-        self.scope = scope
+    def __init__(self, conf, app, req, account, logger, function_obj_name):
+        self.conf = conf
+        self.app = app
+        self.req = req
+        self.account = account
+        self.logger = logger
         self.function_obj_name = function_obj_name
-        self.logger = swift.logger
         self.function_name = function_obj_name.replace('.tar.gz', '')
         self.functions_container = self.conf['functions_container']
+        self.disaggregated_compute = self.conf['disaggregated_compute']
+        self.scope = self.account[5:18]
+
         # Dirs
         self.main_dir = self.conf["main_dir"]
         self.functions_dir = self.conf["functions_dir"]
@@ -32,11 +35,13 @@ class Function:
         self._preparate_dirs()
         self._load_function()
 
+        self.logger.info('Function - Function instance created')
+
     def _preparate_dirs(self):
         """
         Makes the required directories for managing the function.
         """
-        self.logger.info('Preparing function directories')
+        self.logger.info('Function - Preparing function directories')
         functions_path = os.path.join(self.main_dir, self.functions_dir)
         scope_path = os.path.join(functions_path, self.scope)
         self.cache_path = os.path.join(scope_path, self.cache_dir)
@@ -52,7 +57,7 @@ class Function:
         """
         Loads the function.
         """
-        self.logger.info('Loading function: '+self.function_obj_name)
+        self.logger.info('Function - Loading function: '+self.function_obj_name)
 
         self.cached_function_obj = os.path.join(self.cache_path, self.function_obj_name)
         self.function_bin_path = os.path.join(self.bin_path, self.function_name)
@@ -71,10 +76,10 @@ class Function:
         """
         in_cache = False
         if os.path.isfile(self.cached_function_obj):
-            self.logger.info(self.function_obj_name + ' found in cache.')
+            self.logger.info('Function - ' + self.function_obj_name + ' found in cache.')
             in_cache = True
         else:
-            self.logger.info(self.function_obj_name + ' not found in cache.')
+            self.logger.info('Function - ' + self.function_obj_name + ' not found in cache.')
             in_cache = False
 
         return in_cache
@@ -83,23 +88,27 @@ class Function:
         """
         Updates the local cache of functions.
         """
-        self.logger.info('Updating local cache from swift')
-        f_container = self.functions_container
-        new_env = dict(self.swift.req.environ)
-        swift_path = os.path.join('/', self.swift.api_version, self.swift.account,
-                                  f_container, self.function_obj_name)
-        print(swift_path)
-        sub_req = make_subrequest(new_env, 'GET', swift_path,
-                                  swift_source='function_middleware')
-        resp = sub_req.get_response(self.swift.app)
+        self.logger.info('Function - Updating local cache from swift')
 
-        if resp.status != 202:
+        if self.disaggregated_compute:
+            new_env = dict(self.req.environ)
+            swift_path = os.path.join('/', 'v1', self.account,
+                                      self.functions_container, self.function_obj_name)
+            sub_req = make_subrequest(new_env, 'GET', swift_path,
+                                      swift_source='function_middleware')
+            resp = sub_req.get_response(self.app)
+        else:
+            resp = make_swift_request('GET', self.account, self.functions_container,
+                                      self.function_obj_name)
+
+        if resp.status_int != 200:
+            self.logger.info('Function - It is not possible to update the local cache')
             raise FileNotFoundError
 
-        with open(self.cached_function_obj, 'w') as fn:
+        with open(self.cached_function_obj, 'wb') as fn:
             fn.write(resp.body)
 
-        self.logger.info('Local cache updated: '+self.cached_function_obj)
+        self.logger.info('Function - Local cache updated: '+self.cached_function_obj)
 
         self.function_metadata = resp.headers
         set_object_metadata(self.cached_function_obj, resp.headers)
@@ -117,9 +126,9 @@ class Function:
         """
         Loads the memory needed and the timeout of the function.
         """
-        self.logger.info('Loading function information')
+        self.logger.info('Function - Loading function information')
         function_metadata = get_object_metadata(self.cached_function_obj)
-        print('--------------', function_metadata)
+        print('Function - Metadata: ', function_metadata)
 
         if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in \
            function_metadata or MAIN_HEADER not in function_metadata:
@@ -128,7 +137,6 @@ class Function:
             self.memory = int(function_metadata[MEMORY_HEADER])
             self.timeout = int(function_metadata[TIMEOUT_HEADER])
             self.main_class = function_metadata[MAIN_HEADER]
-        print('++++++')
 
     def open_log(self):
         """

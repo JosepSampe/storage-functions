@@ -15,8 +15,8 @@ class ProxyHandler(BaseHandler):
         super(ProxyHandler, self).__init__(
             request, conf, app, logger, redis)
 
-        self.disaggregated_compute = self.conf["disaggregated_compute"]
         self.functions_container = self.conf["functions_container"]
+        self.disaggregated_compute = self.conf["disaggregated_compute"]
         self.compute_nodes = self.conf["compute_nodes"]
         self.req.headers['functions-enabled'] = True
 

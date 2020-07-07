@@ -1,5 +1,6 @@
 import json
 import os
+from io import IOBase
 import syslog
 
 SBUS_FD_OUTPUT_OBJECT = 1
@@ -52,7 +53,7 @@ class Datagram:
         meta = {}
         meta[0] = {'type': SBUS_FD_OUTPUT_OBJECT}
         files = []
-        if isinstance(outfd, file):
+        if isinstance(outfd, IOBase):
             files.append(outfd.fileno())
         else:
             files.append(outfd)
@@ -182,7 +183,7 @@ class Datagram:
         if 0 < self.n_files_:
             self.h_files_ = []
             for i in range(self.n_files_):
-                if isinstance(h_files[i], file):
+                if isinstance(h_files[i], IOBase):
                     self.h_files_.append(h_files[i].fileno())
                 else:
                     self.h_files_.append(h_files[i])

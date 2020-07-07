@@ -77,7 +77,8 @@ class BaseHandler(object):
         self.req.headers['X-Container'] = self.container
         self.req.headers['X-Object'] = self.obj
 
-        return DockerGateway(self)
+        return DockerGateway(self.conf, self.app, self.req, self.response,
+                             self.account, self.logger, self.redis)
 
     def _extract_vaco(self):
         """
@@ -311,7 +312,6 @@ class BaseHandler(object):
                              str(functions_data))
             docker_gateway = self._setup_docker_gateway()
             function_resp = docker_gateway.execute_function(function_info)
-
             return self._process_function_response_onput(function_resp)
         else:
             return self.req.get_response(self.app)
