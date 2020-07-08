@@ -10,7 +10,7 @@
 					path="lib/json-simple-1.1.1.jar"/>
 			</classpath>		
 		</javac>
-	    <jar destfile="build/nop-data-iterator-1.0.jar"
+	    <jar destfile="build/noop-data-iterator-1.0.jar"
 	        basedir="build"
 	     	includes="com/urv/zion/function/noopdataiterator/*">
 	    </jar>
@@ -19,9 +19,9 @@
 	<target name="pack" depends="compile">
 		<delete dir="bin" />
 		<mkdir dir="bin" />
-		<tar destfile = "bin/nop.tar.gz" compression="gzip">
+		<tar destfile = "bin/noop.tar.gz" compression="gzip">
 			<tarfileset dir="build">
-			        <include name="nop-data-iterator-1.0.jar"/>
+			        <include name="noop-data-iterator-1.0.jar"/>
 			</tarfileset>
 			<tarfileset dir=".">
 			        <include name="lib/*.jar"/>

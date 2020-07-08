@@ -62,12 +62,12 @@ path = '../Function Samples/java'
 # put_function(url, token, path+'/Limiter/bin', 'access-limiter.tar.gz', 'com.urv.zion.function.limiter.Handler')
 
 # NOOP DATA ITERATOR
-# put_function(url, token, '../Function Samples/java/NoopDataIterator/bin', 'nop.tar.gz', 'com.urv.zion.function.noopdataiterator.Handler')
+# put_function(url, token, '../Function Samples/java/NoopDataIterator/bin', 'noop.tar.gz', 'com.urv.zion.function.noopdataiterator.Handler')
 
 # CBAC
 # put_function(url, token, path+'/ContentBasedAccessControl/bin', 'cbac.tar.gz', 'com.urv.zion.function.cbac.Handler')
 
 # None
-put_function(url, token, path+'/None/bin', 'none.tar.gz', 'com.urv.zion.function.none.Handler')
+#put_function(url, token, path+'/None/bin', 'none.tar.gz', 'com.urv.zion.function.none.Handler')
 
 print(url, token)
