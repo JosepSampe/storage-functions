@@ -50,17 +50,17 @@ class BaseHandler(object):
         self.method = self.req.method
         self.execution_server = conf["execution_server"]
         self.functions_container = conf.get('functions_container')
-        self.available_set_headers = ['X-Functions-Onput',
-                                      'X-Functions-Onget',
-                                      'X-Functions-Onget-Before',
-                                      'X-Functions-Onget-Manifest',
-                                      'X-Functions-Ondelete']
-        self.available_unset_headers = ['X-Functions-Onput-Delete',
-                                        'X-Functions-Onget-Delete',
-                                        'X-Functions-Onget-Before-Delete',
-                                        'X-Functions-Onget-Manifest-Delete',
-                                        'X-Functions-Ondelete-Delete',
-                                        'X-Functions-Delete']
+        self.available_set_headers = ['X-Function-Onput',
+                                      'X-Function-Onget',
+                                      'X-Function-Onget-Before',
+                                      'X-Function-Onget-Manifest',
+                                      'X-Function-Ondelete']
+        self.available_unset_headers = ['X-Function-Onput-Delete',
+                                        'X-Function-Onget-Delete',
+                                        'X-Function-Onget-Before-Delete',
+                                        'X-Function-Onget-Manifest-Delete',
+                                        'X-Function-Ondelete-Delete',
+                                        'X-Function-Delete']
         self.function_methods = ['GET', 'PUT', 'DELETE']
         self.get_keys = ['onget', 'onget-before', 'onget-manifest']
         self.put_keys = ['onput']
@@ -147,8 +147,8 @@ class BaseHandler(object):
 
     @property
     def is_function_for_manifest(self):
-        return 'X-Functions-Onget-Manifest' in self.req.headers \
-            or 'X-Functions-Onget-Manifest-Delete' in self.req.headers
+        return 'X-Function-Onget-Manifest' in self.req.headers \
+            or 'X-Function-Onget-Manifest-Delete' in self.req.headers
 
     @property
     def is_slo_get_request(self):

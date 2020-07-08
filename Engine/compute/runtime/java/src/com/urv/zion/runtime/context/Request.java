@@ -72,7 +72,7 @@ public class Request {
 			command.write(outMetadata.toString().getBytes());
 			command.flush();
 		} catch (IOException e) {
-			logger_.trace("Error sending command on ApiRequest");
+			logger_.trace("Error sending command on CTX Request: "+e);
 		}
 	}
 	

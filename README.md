@@ -74,7 +74,7 @@ Navigate into [Function Samples](Function%20Samples/java), and compile and deplo
 
 1- Assign the No-operation storage function to the .json file upon GET requests:
 ```bash
-curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet:noop.tar.gz"
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Function-onGet:noop.tar.gz"
 ```
 
 2- Download the .json file that will put into execution the storage function:
@@ -86,14 +86,14 @@ curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
 
 3- Delete the No-operation storage function:
 ```bash
-curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet-Delete:noop.tar.gz"
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Function-onGet-Delete:noop.tar.gz"
 ```
 
 Navigate into [Function Samples](Function%20Samples/java), and compile and deploy the *Counter* storage function by using the [deployment script](Utils/deploy_function.py).
 
 4- Assign the Counter storage function to the .json file upon GET requests:
 ```bash
-curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet:counter.tar.gz"
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Function-onGet:counter.tar.gz"
 ```
 
 5- Download the .json file that will put into execution the storage function:

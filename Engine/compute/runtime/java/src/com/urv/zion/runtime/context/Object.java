@@ -82,7 +82,7 @@ public class Object {
 				br = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
 				bw = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
 			} catch (UnsupportedEncodingException e) {
-				logger_.error("CTX Object: Unsuported encoding URF-8");
+				logger_.error("CTX Object: Unsuported encoding UTF-8");
 			}
 		}
 		

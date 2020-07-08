@@ -40,10 +40,10 @@ public class Swift {
 
 		String swift_host = prop.getProperty("host_ip");
 		String swift_port = prop.getProperty("swift_port");
-		storageUrl =  "http://"+swift_host+swift_port+"/v1/AUTH_"+projectId+"/";
+		storageUrl =  "http://"+swift_host+':'+swift_port+"/v1/AUTH_"+projectId+"/";
 		metadata = new Metadata();
 
-		logger_.info("API Swift created");
+		logger_.info("API Swift created: "+storageUrl);
 	}
 	
 	public void close(){
@@ -71,7 +71,7 @@ public class Swift {
 				for (Entry<String, List<String>> entry : headers.entrySet()) {
 					String key = entry.getKey();
 					String value = entry.getValue().get(0);
-					if (!unnecessaryHeaders.contains(key) && !key.startsWith("Vertigo")){
+					if (!unnecessaryHeaders.contains(key) && !key.startsWith("Function")){
 						metadata.put(key.toLowerCase(), value);
 					}
 					

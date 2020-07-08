@@ -10,6 +10,7 @@ public class Api {
 	
 	private Logger logger_;
 	public Swift swift;
+	public Jedis redis;
 
 
 	public Api(Jedis redis, Properties prop, Map<String, String> request_headers, Logger localLog) 
@@ -20,6 +21,7 @@ public class Api {
 			token = request_headers.get("X-Auth-Token");
 		
 		logger_ = localLog;
+		redis = new Redis(redis, prop, projectId, logger_).getClient();
 		swift = new Swift(redis, prop, token, projectId, logger_);
 		logger_.info("Full API created");
 	}
