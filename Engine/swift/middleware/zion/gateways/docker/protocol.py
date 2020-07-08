@@ -12,15 +12,15 @@ eventlet.monkey_patch()
 
 class Protocol:
 
-    def __init__(self, worker, object_stream, object_metadata,
-                 request_headers, function_parameters, be):
+    def __init__(self, logger, worker, object_stream, object_metadata,
+                 request_headers, function_parameters):
         self.worker = worker
         self.object_stream = object_stream
         self.object_metadata = object_metadata
         self.request_headers = request_headers
         self.function_parameters = function_parameters
         self.function_timeout = self.worker.function.get_timeout()
-        self.logger = be.logger
+        self.logger = logger
         self.function_name = self.worker.function.get_name()
 
         # remote side file descriptors and their metadata lists
@@ -37,6 +37,8 @@ class Protocol:
         self.input_data_read_fd = None  # Data from the object - remote
         self.input_data_write_fd = None  # Data from the object - local
         self.internal_pipe = False
+
+        self.logger.info('Protocol - Protocol instance created')
 
     def _add_output_object_stream(self):
         self.output_data_read_fd, self.output_data_write_fd = os.pipe()
@@ -81,6 +83,7 @@ class Protocol:
         self.fdmd.append(md)
 
     def _prepare_invocation_fds(self):
+        self.logger.info('Protocol - preparing invoke fds')
         self._add_output_object_stream()
         self._add_output_command_stream()
         self._add_input_object_stream()
@@ -99,6 +102,7 @@ class Protocol:
             os.close(self.input_data_read_fd)
 
     def _invoke(self):
+        self.logger.info('Protocol - Invoking function')
         dtg = Datagram()
         dtg.set_files(self.fds)
         dtg.set_metadata(self.fdmd)
@@ -132,30 +136,20 @@ class Protocol:
         except Exception:
             self.logger.exception('Unexpected error at writing input data')
 
-    def _byteify(self, data):
-        if isinstance(data, dict):
-            return {self._byteify(key): self._byteify(value)
-                    for key, value in data.iteritems()}
-        elif isinstance(data, list):
-            return [self._byteify(element) for element in data]
-        elif isinstance(data, unicode):
-            return data.encode('utf-8')
-        else:
-            return data
-
     def _read_response(self):
+        self.logger.info('Protocol - Reading response from function')
         f_resp = dict()
 
         try:
             self._wait_for_read_with_timeout(self.command_read_fd)
-            flat_json = os.read(self.command_read_fd, 12)
+            flat_json = os.read(self.command_read_fd, 12).decode()
 
             if flat_json:
-                f_resp = self._byteify(json.loads(flat_json))
+                f_resp = json.loads(flat_json)
             else:
                 raise ValueError('No response from function')
-        except:
-            e = sys.exc_info()[1]
+
+        except Exception as e:
             f_resp['cmd'] = 'RE'  # Request Error
             f_resp['message'] = ('Error running ' + self.function_name +
                                  ' function: ' + str(e))
@@ -198,9 +192,11 @@ class Protocol:
         if out_data['command'] != 'DW':
             self._close_local_side_descriptors()
 
+        self.logger.info('Protocol - Received response: ' + str(out_data))
         return out_data
 
     def comunicate(self):
+        self.logger.info('Protocol - Communicating with the worker to run the function')
         self._prepare_invocation_fds()
 
         try:

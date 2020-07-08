@@ -128,7 +128,7 @@ class Function:
         """
         self.logger.info('Function - Loading function information')
         function_metadata = get_object_metadata(self.cached_function_obj)
-        print('Function - Metadata: ', function_metadata)
+        self.logger.info('Function - Metadata: ' + str(function_metadata))
 
         if MEMORY_HEADER not in function_metadata or TIMEOUT_HEADER not in \
            function_metadata or MAIN_HEADER not in function_metadata:

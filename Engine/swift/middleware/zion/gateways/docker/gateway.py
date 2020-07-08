@@ -75,8 +75,8 @@ class DockerGateway:
         self.logger.info('------> WORKER took %0.6f s' % ((time2-time1)))
 
         time1 = time.time()
-        protocol = Protocol(worker, object_stream, object_metadata,
-                            request_headers, function_parameters, self.swift)
+        protocol = Protocol(self.logger, worker, object_stream, object_metadata,
+                            request_headers, function_parameters)
         resp = protocol.comunicate()
         time2 = time.time()
         ptc = time2-time1

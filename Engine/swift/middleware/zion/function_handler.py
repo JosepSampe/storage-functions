@@ -1,4 +1,4 @@
-from swift.common.swob import wsgify
+from swift.common.swob import wsgify, HTTPInternalServerError, HTTPException
 from swift.common.utils import get_logger
 from zion.handlers import ProxyHandler
 from zion.handlers import ComputeHandler
@@ -52,11 +52,18 @@ class FunctionHandlerMiddleware(object):
             self.logger.debug('%s call in %s' % (req.method, req.path))
 
             return handler.handle_request()
+
         except NotFunctionRequest:
             self.logger.debug('No Zion Request, bypassing middleware')
             return req.get_response(self.app)
-        except Exception as exception:
-            raise exception
+
+        except HTTPException:
+            self.logger.exception('Zion execution failed')
+            raise
+
+        except Exception:
+            self.logger.exception('Zion execution failed')
+            raise HTTPInternalServerError(body='Zion execution failed')
 
 
 def filter_factory(global_conf, **local_conf):

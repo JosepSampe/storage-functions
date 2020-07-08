@@ -37,9 +37,9 @@ class Worker:
         # docker_id = self.redis.zrange(self.worker_key, 0, 0)
         self.logger.info("Worker - Getting available worker")
         workers = self.redis.zrange(self.worker_key, 0, -1)
-        if workers:
-            docker_id = random.sample(workers, 1)[0]
 
+        if workers:
+            docker_id = random.sample(workers, 1)[0].decode()
             if docker_id:
                 docker_id = docker_id
                 worker_path = os.path.join(self.main_dir, self.workers_dir,
