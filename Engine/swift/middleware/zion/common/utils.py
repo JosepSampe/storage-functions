@@ -178,7 +178,7 @@ class DataFdIter(object):
             raise
         return chunk
 
-    def next(self, size=64 * 1024):
+    def __next__(self, size=64 * 1024):
         if len(self.buf) < size:
             r, _, _ = select.select([self.data_fd], [], [], self.timeout)
             if len(r) == 0:

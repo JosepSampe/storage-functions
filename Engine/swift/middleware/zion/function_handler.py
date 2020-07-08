@@ -63,7 +63,7 @@ class FunctionHandlerMiddleware(object):
 
         except Exception:
             self.logger.exception('Zion execution failed')
-            raise HTTPInternalServerError(body='Zion execution failed')
+            raise HTTPInternalServerError(body='Unable to execute the requested operation: Zion execution failed\n')
 
 
 def filter_factory(global_conf, **local_conf):

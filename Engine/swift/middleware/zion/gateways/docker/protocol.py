@@ -146,6 +146,7 @@ class Protocol:
 
             if flat_json:
                 f_resp = json.loads(flat_json)
+                self.logger.info('Protocol - Received response: ' + str(f_resp))
             else:
                 raise ValueError('No response from function')
 
@@ -192,7 +193,6 @@ class Protocol:
         if out_data['command'] != 'DW':
             self._close_local_side_descriptors()
 
-        self.logger.info('Protocol - Received response: ' + str(out_data))
         return out_data
 
     def comunicate(self):

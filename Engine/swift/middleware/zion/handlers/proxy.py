@@ -161,10 +161,17 @@ class ProxyHandler(BaseHandler):
         """
         trigger, function = self._get_function_unset_data()
         key = self.req.path
-        function_data = self.redis.hgetall(key)
-        if trigger.encode() in function_data:
+        redis_function_data = self.redis.hgetall(key)
+        function_data = {}
+
+        if redis_function_data:
+            for trg in redis_function_data:
+                fn_info = pickle.loads(redis_function_data[trg])
+                function_data[trg.decode()] = fn_info
+
+        if trigger in function_data and function in function_data[trigger]:
             self.redis.hdel(key, trigger)
-            del function_data[trigger.encode()]
+            del function_data[trigger]
             if not function_data:
                 self.redis.delete(key)
             msg = 'Function "' + function + '" correctly '\

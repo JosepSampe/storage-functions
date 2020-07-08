@@ -1,6 +1,6 @@
 <p align="center"> <img src="docs/img/zion.png" width="250"></p>
 
-Zion is a Serverless Computing Framework for OpenStack Swift, allowing to run storage functions directly on the data. It aims to solve the scalability and resource contention problems of active storage, while benefiting from data locality to reduce latency by placing computations close to the data. Our model is data-driven and not event-driven, because our computations are located in the data pipeline, and intercept the data flows that arrive and return from the object store.
+Zion is a Serverless Computing Framework for OpenStack Swift that allows to run storage functions directly on the data. It aims to solve the scalability and resource contention problems of active storage, while benefiting from data locality to reduce latency by placing computations close to the data. Our model is data-driven and not event-driven, because ZIon computations are located in the data pipeline, and intercept the data flows that arrive and return from the object store.
 
 
 ## Architecture
@@ -70,7 +70,7 @@ curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
 
 
 ### Test Zion
-Navigate into [Function Samples](Function Samples/java), and compile and deploy the *NoopDataIterator* storage function by using the [deployment script](utils/deploy_function.py).
+Navigate into [Function Samples](Function%20Samples/java), and compile and deploy the *NoopDataIterator* storage function by using the [deployment script](Utils/deploy_function.py).
 
 1- Assign the No-operation storage function to the .json file upon GET requests:
 ```bash
@@ -89,7 +89,7 @@ curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
 curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet-Delete:noop.tar.gz"
 ```
 
-Navigate into [Function Samples](Function Samples/java), and compile and deploy the *Counter* storage function by using the [deployment script](utils/deploy_function.py).
+Navigate into [Function Samples](Function%20Samples/java), and compile and deploy the *Counter* storage function by using the [deployment script](Utils/deploy_function.py).
 
 4- Assign the Counter storage function to the .json file upon GET requests:
 ```bash

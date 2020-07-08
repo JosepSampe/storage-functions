@@ -147,8 +147,8 @@ class BaseHandler(object):
 
     @property
     def is_function_for_manifest(self):
-        return 'X-Function-Onget-Manifest' in self.req.headers \
-            or 'X-Function-Onget-Manifest-Delete' in self.req.headers
+        return 'X-Functions-Onget-Manifest' in self.req.headers \
+            or 'X-Functions-Onget-Manifest-Delete' in self.req.headers
 
     @property
     def is_slo_get_request(self):
