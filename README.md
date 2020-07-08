@@ -1,8 +1,6 @@
-<p align="center"> <img src="docs/img/zion.png" width="200"></p>
+<p align="center"> <img src="docs/img/zion.png" width="250"></p>
 
-Zion is a Serverless Computing Framework for OpenStack Swift, allowing to run storage functions directly on the data.
-
-Zion aims to solve the scalability and resource contention problems of active storage, while benefiting from data locality to reduce latency by placing computations close to the data. Our model is data-driven and not event-driven, because our computations are located in the data pipeline, and intercept the data flows that arrive and return from the object store.
+Zion is a Serverless Computing Framework for OpenStack Swift, allowing to run storage functions directly on the data. It aims to solve the scalability and resource contention problems of active storage, while benefiting from data locality to reduce latency by placing computations close to the data. Our model is data-driven and not event-driven, because our computations are located in the data pipeline, and intercept the data flows that arrive and return from the object store.
 
 
 ## Architecture
@@ -13,12 +11,9 @@ We built a new Swift interception middleware for Zion to accomplish two primary 
 
 ### Computation layer
 
-In Zion, the computation layer is composed by a pool of compute nodes. They are located between the proxies and the storage nodes, and they are all managed by the *Zion Service Manager*.
+In Zion, the computation layer is composed by a pool of compute nodes. They are located between the proxies and the storage nodes. In a compute node, each function is run inside a separate Docker container, what is called a *worker*. Zion’s runtime is Java-based, and consequently, every function is run in a Java Virtual Machine (JVM). At a very high level, a worker can be viewed as a container running a specific function. Every new invocation to the function is handled by a new thread inside the JVM of a worker. This means that a single worker can handle more than one request at a time. By default, each worker uses 1 exclusive CPU, then a service called *Zion Service Manager* is responsible to monitor the function workers and scale them up and down depending of the CPU usage.
 
-Each function is run inside a separate Docker container, what is called a *worker*. Zion’s runtime is Java-based, and consequently, every function is run in a Java Virtual Machine (JVM). At a very high level, a worker can be viewed as a container running a specific function. Every new invocation to the function is handled by a new thread inside the JVM of a worker. This means that a single worker can handle more than one request at a time. By default, each worker uses 1 exclusive CPU. The  *Zion Service Manager* is responsible to monitor function workers and scale them up and down depending of the CPU usage.
-
-![Compute Node](docs/img/compute_node.png?raw=true "Compute Node")
-
+<p align="center"> <img src="docs/img/compute_node.png"></p>
 
 ## Installation
 
@@ -44,4 +39,71 @@ If you already ran the installation script, you can update the Zion framework fr
 
 ```bash
 curl -fsSL https://git.io/JJq4t | sudo bash /dev/stdin update
+```
+
+## Verify
+### Test Swift
+To verify the correct operation of the Swift installation, follow these steps:
+
+1- Load credentials:
+```bash
+source zion-openrc
+```
+
+2- Create data bucket:
+```bash
+swift post data
+```
+
+3- Create new .json file and upload it to data bucket:
+```bash
+echo test > test.json
+swift upload data test.json
+```
+
+4- Test if you can download the .json file:
+```bash
+swift download data test.json
+or
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
+```
+
+
+### Test Zion
+Navigate into [Function Samples](Function Samples/java), and compile and deploy the *NoopDataIterator* storage function by using the [deployment script](utils/deploy_function.py).
+
+1- Assign the No-operation storage function to the .json file upon GET requests:
+```bash
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet:noop.tar.gz"
+```
+
+2- Download the .json file that will put into execution the storage function:
+```bash
+swift download data test.json
+or
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
+```
+
+3- Delete the No-operation storage function:
+```bash
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet-Delete:noop.tar.gz"
+```
+
+Navigate into [Function Samples](Function Samples/java), and compile and deploy the *Counter* storage function by using the [deployment script](utils/deploy_function.py).
+
+4- Assign the Counter storage function to the .json file upon GET requests:
+```bash
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Functions-onGet:counter.tar.gz"
+```
+
+5- Download the .json file that will put into execution the storage function:
+```bash
+swift download data test.json
+or
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
+```
+
+6- The Counter storage function adds into the object metadata an access counter and the last access timestamp. Verify the correct execution of the storage function by running the following command:
+```bash
+swift stat data test.json
 ```

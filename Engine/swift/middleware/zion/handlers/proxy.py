@@ -151,7 +151,7 @@ class ProxyHandler(BaseHandler):
                                    'function at a time.\n')
 
         trigger = header[0].lower().split('-', 2)[2].rsplit('-', 1)[0]
-        function = self.req.headers[header[0]]+".tar.gz"
+        function = self.req.headers[header[0]]
 
         return trigger, function
 
@@ -162,9 +162,9 @@ class ProxyHandler(BaseHandler):
         trigger, function = self._get_function_unset_data()
         key = self.req.path
         function_data = self.redis.hgetall(key)
-        if trigger in function_data:
+        if trigger.encode() in function_data:
             self.redis.hdel(key, trigger)
-            del function_data[trigger]
+            del function_data[trigger.encode()]
             if not function_data:
                 self.redis.delete(key)
             msg = 'Function "' + function + '" correctly '\
