@@ -66,13 +66,13 @@ class DockerGateway:
         function = Function(self.conf, self.app, self.req, self.account, self.logger, f_name)
         time2 = time.time()
         fc = time2-time1
-        self.logger.info('------> FUNCTION took %0.6f s' % ((time2-time1)))
+        self.logger.info('------> FUNCTION took %0.6fs' % ((time2-time1)))
 
         time1 = time.time()
         worker = Worker(self.conf, self.account, self.logger, self.redis, function)
         time2 = time.time()
         wkr = time2-time1
-        self.logger.info('------> WORKER took %0.6f s' % ((time2-time1)))
+        self.logger.info('------> WORKER took %0.6fs' % ((time2-time1)))
 
         time1 = time.time()
         protocol = Protocol(self.logger, worker, object_stream, object_metadata,
@@ -80,7 +80,7 @@ class DockerGateway:
         resp = protocol.comunicate()
         time2 = time.time()
         ptc = time2-time1
-        self.logger.info('-----> PROTOCOL took %0.6f s' % ((time2-time1)))
+        self.logger.info('------> PROTOCOL took %0.6fs' % ((time2-time1)))
 
         total = fc + wkr + ptc
 

@@ -1,7 +1,7 @@
 from zion.handlers import BaseHandler
 from zion.handlers.base import NotFunctionRequest
 from swift.common.utils import public
-
+import time
 
 class ComputeHandler(BaseHandler):
 
@@ -37,7 +37,9 @@ class ComputeHandler(BaseHandler):
         functions_data = self._get_functions()
         self.response = self.req.get_response(self.app)
         # self.response = Response(body="Test", headers=self.req.headers)
+        t0 = time.time()
         self.apply_function_onget(functions_data)
+        self.logger.info('------> TOAL ZION TIME: %0.6fs' % ((time.time()-t0)))
 
         return self.response
 

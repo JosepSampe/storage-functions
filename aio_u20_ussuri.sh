@@ -26,7 +26,7 @@ upgrade_system(){
 
     DEBIAN_FRONTEND=noninteractive apt -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade
     unset DEBIAN_FRONTEND
-    apt install python3-pip python3-openstackclient -y
+    apt install python3-pip python3-openstackclient git curl -y
 }
 
 
@@ -322,7 +322,6 @@ install_zion(){
     cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime/java/lib
     
     sed -i "/host_ip=127.0.0.1/c\host_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
-    #sed -i "/redis_ip=/c\redis_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
     
     
     mkdir -p /opt/zion/service
@@ -333,6 +332,8 @@ install_zion(){
     find /opt/zion -type d -exec chmod 775 {} \;
     find /opt/zion -type f -exec chmod 664 {} \;
     chmod 777 /opt/zion/runtime/java/start_daemon.sh
+    
+    rm -rf storage-functions
     
     swift-init main restart
 }
@@ -409,31 +410,37 @@ update_zion(){
     printf "See the full log at $LOG\n\n"
 
     printf "Installing Swift middleware\t ... \t20%%"
-    git clone https://github.com/JosepSampe/micro-controllers  >> $LOG 2>&1;
-    pip install -U micro-controllers/Engine/swift  >> $LOG 2>&1;
+    git clone https://github.com/JosepSampe/storage-functions >> $LOG 2>&1;
+    pip3 install -U storage-functions/Engine/swift/middleware >> $LOG 2>&1;
+    pip3 install -U psutil >> $LOG 2>&1;
     printf "\tDone!\n"
     
-    printf "Installing Libraries\t\t ... \t85%%"
-    mkdir -p /opt/vertigo
-    cp micro-controllers/Engine/runtime/bin/DockerDaemon.jar /opt/vertigo
-    cp micro-controllers/Engine/runtime/lib/spymemcached-2.12.1.jar /opt/vertigo
-    cp micro-controllers/Engine/runtime/lib/jedis-2.9.0.jar /opt/vertigo
-    cp micro-controllers/Engine/runtime/utils/start_daemon.sh /opt/vertigo
-    cp micro-controllers/Engine/runtime/utils/logback.xml /opt/vertigo
-    cp micro-controllers/Engine/runtime/utils/docker_daemon.config /opt/vertigo
-    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/BusDockerJavaFacade.jar /opt/vertigo
-    cp micro-controllers/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/vertigo
-    cp micro-controllers/Engine/bus/TransportLayer/bin/bus.so /opt/vertigo
-    rm -rf micro-controllers
-
-    sed -i '/swift_ip=/c\swift_ip='$IP_ADDRESS /opt/vertigo/docker_daemon.config
-    sed -i '/redis_ip=/c\redis_ip='$IP_ADDRESS /opt/vertigo/docker_daemon.config
-
-    . vertigo-openrc
-    PROJECT_ID=$(openstack token issue | grep -w project_id | awk '{print $4}')
-    mkdir -p /home/docker_device/vertigo/scopes/${PROJECT_ID:0:13}/
-    cp /opt/vertigo/* /home/docker_device/vertigo/scopes/${PROJECT_ID:0:13}/
-    chown -R swift:swift /home/docker_device/vertigo/scopes/
+    printf "Installing Libraries\t\t ... \t75%%"
+    mkdir -p /opt/zion/runtime/java/lib
+    
+    cp storage-functions/Engine/compute/runtime/java/bin/ZionDockerDaemon-1.0.jar /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/start_daemon.sh /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/java/logback.xml /opt/zion/runtime/java
+    cp storage-functions/Engine/compute/runtime/worker.config /opt/zion/runtime/java
+ 
+    cp -R storage-functions/Engine/compute/runtime/java/lib/* /opt/zion/runtime/java/lib
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/SBusJavaFacade.jar /opt/zion/runtime/java/lib
+    cp storage-functions/Engine/bus/DockerJavaFacade/bin/libjbus.so /opt/zion/runtime/java/lib
+    cp storage-functions/Engine/bus/TransportLayer/bin/bus.so /opt/zion/runtime/java/lib
+    
+    sed -i "/host_ip=127.0.0.1/c\host_ip=$IP_ADDRESS" /opt/zion/runtime/java/worker.config
+ 
+    mkdir -p /opt/zion/service
+    cp storage-functions/Engine/compute/service/zion_service.py /opt/zion/service
+    
+    chown -R swift:swift /opt/zion
+    
+    find /opt/zion -type d -exec chmod 775 {} \;
+    find /opt/zion -type f -exec chmod 664 {} \;
+    chmod 777 /opt/zion/runtime/java/start_daemon.sh
+    
+    rm -rf storage-functions
+    
     printf "\tDone!\n"
 
     printf "Restarting services\t\t ... \t98%%"

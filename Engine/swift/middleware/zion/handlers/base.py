@@ -3,7 +3,7 @@ from zion.common.utils import DataFdIter
 
 from swift.common.swob import Response
 import os
-
+import time
 
 class NotFunctionRequest(Exception):
     pass

@@ -337,8 +337,8 @@ def monitoring_info_auditor(containers, monitoring_info):
                         if last_active_docker not in workers_to_kill[function]:
                             logger.info("Underutilized function worker of '"+function+"': "+last_active_docker)
                             workers_to_kill[function][last_active_docker] = WORKER_TIMEOUT
-        except:
-            raise
+        except Exception as e:
+            logger.info('Exception: {}'.format(str(e)))
 
 
 def monitoring(containers):
