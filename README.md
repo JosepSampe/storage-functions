@@ -22,7 +22,7 @@ For testing purposes, it is possible to install an All-In-One (AiO) machine with
 We prepared a script for automating this task. The requirements of the machine are a clean installation of **Ubuntu Server 20.04**, **2CPU Cores**, at least **2GB** of RAM, and a **fixed IP address**. It is preferable to upgrade the system to the latest versions of the packages with `apt update && apt dist-upgrade` before starting the installation, and set the server name as `controller` in the `/etc/hostname` file. Then, download the `aio_u20_ussuri.sh` script and run it as sudo:
 
 ```bash
-curl -fsSL https://git.io/JJq4t | sudo bash /dev/stdin install
+curl -fsSL https://git.io/JJq4t | sudo bash /dev/stdin install aio
 ```
 
 The script first installs Keystone, Swift and Horizon (Ussuri release), then it proceeds to install the Zion framework package. Note that the script uses weak passwords for the installed services. If you want more secure services, please change them at the top of the script.
@@ -38,7 +38,7 @@ The script takes long to complete (~10 minutes) (it depends of the network conne
 If you already ran the installation script, you can update the Zion framework from this repository by the following command:
 
 ```bash
-curl -fsSL https://git.io/JJq4t | sudo bash /dev/stdin update
+curl -fsSL https://git.io/JJq4t | sudo bash /dev/stdin update aio
 ```
 
 ## Verify
@@ -93,7 +93,7 @@ Navigate into [Function Samples](Function%20Samples/java), and compile and deplo
 
 4- Assign the Counter storage function to the .json file upon GET requests:
 ```bash
-curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Function-onGet:counter.tar.gz"
+curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json -X POST -H "X-Function-onGet:access-counter.tar.gz"
 ```
 
 5- Download the .json file that will put into execution the storage function:
@@ -107,3 +107,7 @@ curl -H "X-Auth-Token:$TOKEN" $STORAGE_URL/data/test.json
 ```bash
 swift stat data test.json
 ```
+
+## See also
+
+"[Data-driven Serverless Functions for Object Storage](https://dl.acm.org/doi/abs/10.1145/3135974.3135980)" by Josep Sampé, Marc Sánchez-Artigas, Pedro García-López and Gerard París. Proceedings of the 18th ACM/IFIP/USENIX Middleware Conference (Middleware 17), December 2017, Las Vegas, Nevada.
